@@ -1,0 +1,52 @@
+name: 💡 Feature request
+description: Suggest an idea or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to achieve? What is missing or awkward today?
+      placeholder: When I translate long chapters, I ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Keep it aligned with the platform's principles (local-only, human-approved, model-agnostic).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Import (PDF/OCR)
+        - Structure & segmentation
+        - Entities & glossary
+        - Translation
+        - QA / verification
+        - Export
+        - Frontend UI
+        - Deployment (Docker/compose)
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Ground rules acknowledged
+      description: See CONTRIBUTING.md — these are non-negotiable by design.
+      options:
+        - label: The feature keeps all data local (no cloud calls)
+          required: true
+        - label: The feature keeps the human approval loop intact
+          required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Willingness to contribute
+      options:
+        - label: I am willing to help implement or test this
+          required: false

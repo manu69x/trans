@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & usage help
+    url: https://github.com/manu69x/trans/discussions
+    about: Please ask usage questions in Discussions rather than opening an issue.
+  - name: Documentation
+    url: https://github.com/manu69x/trans#readme
+    about: README, architecture, deployment guide, PRD and ADRs.

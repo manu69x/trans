@@ -1,0 +1,60 @@
+name: 🐛 Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Logs are JSON-sanitized
+        (no manuscript text), so they are safe to paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: A clear and concise description.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: The segment of `docker compose logs` (or `just logs`) that shows the problem.
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Import (PDF/OCR)
+        - Structure & segmentation
+        - Entities & glossary
+        - Translation
+        - QA / verification
+        - Export
+        - Frontend UI
+        - Deployment (Docker/compose)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / Docker version
+      placeholder: e.g. Windows 11 + Docker Desktop 4.35, Ubuntu 24.04 + Docker 27
+    validations:
+      required: true
+  - type: textarea
+    id: models
+    attributes:
+      label: Gateway / models
+      description: Optional — model ids from `GET /v1/models` if the issue involves inference (model ids are not sensitive).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions
+          required: true
+        - label: I can reproduce this on the latest `main`
+          required: false
