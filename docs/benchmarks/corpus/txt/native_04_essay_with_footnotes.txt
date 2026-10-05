@@ -1,0 +1,17 @@
+Title
+EN source - machine-translatable excerpt
+The question of local inference has grown less rhetorical and more practical in the
+There are three reasons an institution keeps its data on a single machine. The first is
+confidentiality: a manuscript must never cross a public network. The second is
+latency: a translator will not watch a spinner for twenty seconds. The third is cost,
+Consider the tokenization problem. A model that counts words as we do will regularly
+misjudge the length of a paragraph, sometimes by a factor of two. This matters more
+than it appears, because budgeting is how we avoid the failure mode in which the
+Footnote: see also the discussion of context windows in chapter four, where the
+author argues that a planner must reserve output headroom rather than assume the
+The evidence, such as it is, points toward hybrid strategies. A small local model can
+handle the mechanical work - segmentation, normalization, extraction - while a larger
+model is reserved for the judgment that still resists automation. This division of labour
+mirrors, in its own way, the older practice of the translator's assistant reading the
+Notes
+See also the discussion of context windows in chapter four.

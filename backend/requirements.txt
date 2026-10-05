@@ -1,0 +1,35 @@
+# Pinned for reproducibility; pyproject lists dev extras via optional-deps.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.10
+pgvector>=0.3.0
+redis>=5.0.0
+celery>=5.4
+minio>=7.0
+pypdf>=4.0
+fpdf2>=2.5
+# Editorial export (PRD §15.4): DOCX + EPUB writers, local-only.
+python-docx>=1.0
+ebooklib>=0.18
+python-multipart>=0.0.9
+pydantic>=2.6
+PyJWT>=2.9.0
+pymupdf>=1.24
+pillow>=10.0
+spacy>=3.7
+# CAT chunking (PRD 5.4): real BPE tokenizer (ADR-001 §3.4)
+tiktoken>=0.8
+# English sentence parser model (install via:
+#   pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# kept as a URL comment because pip cannot resolve the model name alone)
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# Italian parser for the reference-free QE fluency signal (PRD §10.3);
+# there is no it_core_web_sm, the IT model is it_core_news_sm.
+it_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-3.8.0/it_core_news_sm-3.8.0-py3-none-any.whl
+# Runtime deps missing from the original image build (found 2026-09-10)
+jsonschema>=4.20
+argon2-cffi>=23.1
+httpx>=0.27
+lxml>=5.0
+numpy>=1.26

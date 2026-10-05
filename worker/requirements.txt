@@ -1,0 +1,8 @@
+# Local-only job stack. Real parsers/OCR/NLP added in later phases.
+celery>=5.4.0
+redis>=5.0.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.10
+# OCR rasterisation for the 'ocr' queue (PRD 5.2 step 4, ADR-002 L3/L4).
+pymupdf>=1.24
+pillow>=10.0

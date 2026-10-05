@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "booknlp"
+version = "1.0.7"
+description = "BookNLP (vendored fork for the trans platform: legacy-buffer-tolerant model loading)"
+requires-python = ">=3.9"
+
+[tool.setuptools]
+packages = ["booknlp", "booknlp.common", "booknlp.english"]

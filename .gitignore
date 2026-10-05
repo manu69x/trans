@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+.venv*/
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Temp / cache
+/tmp/
+*.tmp
+
+# Secrets: never in the repo (the prod profile reads them from ./secrets)
+secrets/
+.env
+*.pem
+*.key
+infra/tls/
+
+# Windows filesystem artifacts
+*:Zone.Identifier
+
+# Keep heavyweight PDFs out of git by default; the synthetic benchmark
+# corpus (all well under 50 MB) is the whitelisted exception. For regular
+# work with large PDFs prefer Git LFS.
+*.pdf
+!docs/benchmarks/corpus/native_*.pdf
+!docs/benchmarks/corpus/scanned_*.pdf

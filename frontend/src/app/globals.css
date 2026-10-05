@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+/* Etichette di stato del progetto (§5.1) */
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply btn bg-indigo-500 text-white hover:bg-indigo-400;
+}
+
+.btn-secondary {
+  @apply btn border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800;
+}
+
+.input {
+  @apply w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none;
+}
+
+.label {
+  @apply mb-1 block text-sm font-medium text-slate-300;
+}
+
+.card {
+  @apply rounded-lg border border-slate-800 bg-slate-900/60 p-4;
+}

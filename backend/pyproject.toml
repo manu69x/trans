@@ -1,0 +1,67 @@
+[project]
+name = "trans-backend"
+version = "0.1.0"
+description = "Trans FastAPI backend for EN->IT literary translation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+    # Migrazioni schema (Alembic è l'unica verità; il container esegue
+    # `alembic upgrade head` al boot).
+    "alembic>=1.13",
+    "psycopg2-binary>=2.9",
+    "pgvector>=0.3",
+    "redis>=5.0",
+    "celery>=5.4",
+    "minio>=7.0",
+    "pypdf>=4.0",
+    "fpdf2>=2.5",
+    # Editorial export (PRD §15.4): DOCX + EPUB writers, local-only.
+    "python-docx>=1.0",
+    "ebooklib>=0.18",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.6",
+    "PyJWT>=2.9.0",
+    # L1 layout-aware extraction (PRD 5.2, ADR-002 L1) and OCR rasterisation
+    # (ADR-002 L3/L4): the import pipeline needs both, local-only.
+    "pymupdf>=1.24",
+    "pillow>=10.0",
+    # CAT chunking (PRD 5.4): English sentence parser + real BPE tokenizer
+    # (ADR-001 §3.4). The en_core_web_sm wheel is installed from the
+    # explosion release URL (pip install en_core_web_sm-3.8.0-py3-none-any.whl).
+    "spacy>=3.7",
+    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "tiktoken>=0.8",
+    # Runtime deps missing from the original image build (found 2026-09-10):
+    # QA critic schema validation, password hashing, HTTP client, XLIFF/TMX
+    # XML parsing, QE embeddings.
+    "jsonschema>=4.20",
+    "argon2-cffi>=23.1",
+    "httpx>=0.27",
+    "lxml>=5.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+trans-api = "backend.main:run"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# The build context also contains migrations/ (copied into the container for
+# `alembic upgrade head`): without this declaration setuptools rejects the
+# ambiguous flat layout ['backend', 'migrations'].
+[tool.setuptools]
+packages = ["backend"]
