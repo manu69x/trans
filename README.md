@@ -18,6 +18,10 @@ LM Studio, ...).
 > currently in **Italian** (the tool targets Italian literary translators);
 > an English UI is planned. Code comments are a mix of English and Italian.
 
+| The CAT workbench — translate, review, approve | Token-budgeted segmentation |
+|---|---|
+| ![The bilingual translation workbench](.github/assets/translation.png) | ![Token-budgeted chapter segmentation](.github/assets/segments.png) |
+
 ## Highlights
 
 - **PDF import** of digital books and scans: layout-aware extraction,
