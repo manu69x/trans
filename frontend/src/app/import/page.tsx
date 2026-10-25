@@ -46,32 +46,16 @@ import {
   type DocumentPage,
   type StructureNode as StructureNodeDto,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
-const KIND_LABEL_IT: Record<string, string> = {
-  front_matter: "Preliminari",
-  part: "Parte",
-  chapter: "Capitolo",
-  scene: "Scena",
-  back_matter: "Appendice",
-  footnote: "Nota",
-};
-
-const METHOD_LABEL_IT: Record<string, string> = {
-  pdf_toc: "segnalibro PDF",
-  toc_page: "indice",
-  font: "tipografia",
-  regex: "pattern",
-  narrative: "narrativo",
-  user: "manuale",
-};
-
-function kindLabel(kind: string): string {
-  return KIND_LABEL_IT[kind] ?? kind;
-}
-
-function methodLabel(method: string): string {
-  return METHOD_LABEL_IT[method] ?? method;
-}
+/** Valori dei tipi di nodo per il select manuale (§5.3). */
+const NODE_KINDS = [
+  "chapter",
+  "part",
+  "front_matter",
+  "back_matter",
+  "footnote",
+] as const;
 
 /** Albero §5.3: i nodi scena (con parent_id) annidati sotto il capitolo. */
 function buildTree(nodes: StructureNodeDto[]): TreeNode[] {
@@ -93,6 +77,8 @@ interface TreeNode {
 
 export default function ImportPage() {
   const queryClient = useQueryClient();
+  const { t, dict } = useI18n();
+  const kindLabels = dict.enums.structureKind as Record<string, string>;
 
   const projectsQuery = useQuery({
     queryKey: ["progetti"],
@@ -208,7 +194,7 @@ export default function ImportPage() {
           ? err.detail
           : err instanceof Error
             ? err.message
-            : "Operazione non riuscita"
+            : t("importPage.opFailed")
       );
     } finally {
       setBusy(false);
@@ -221,26 +207,25 @@ export default function ImportPage() {
   );
 
   if (projectsQuery.isLoading) {
-    return <Loading label="Caricamento progetti…" />;
+    return <Loading label={t("projects.loading")} />;
   }
   if (projectsQuery.isError) {
-    return <ErrorNote message="Impossibile caricare i progetti." />;
+    return <ErrorNote message={t("importPage.loadError")} />;
   }
 
   return (
     <div className="mx-auto max-w-7xl">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Import e struttura</h1>
+          <h1 className="text-2xl font-bold text-white">{t("importPage.title")}</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Viewer PDF + testo estratto sincronizzati, albero capitoli e
-            correzione confini (PRD §11.1, §5.3).
+            {t("importPage.subtitle")}
           </p>
         </div>
         <div className="flex items-end gap-2">
           <div>
             <label className="label" htmlFor="import-project">
-              Progetto
+              {t("importPage.project")}
             </label>
             <select
               id="import-project"
@@ -257,7 +242,7 @@ export default function ImportPage() {
           </div>
           <div>
             <label className="label" htmlFor="import-document">
-              Documento
+              {t("importPage.document")}
             </label>
             <select
               id="import-document"
@@ -266,7 +251,7 @@ export default function ImportPage() {
               onChange={(e) => setDocumentId(e.target.value || null)}
             >
               {(documentsQuery.data ?? []).length === 0 && (
-                <option value="">Nessun documento</option>
+                <option value="">{t("importPage.noDocument")}</option>
               )}
               {(documentsQuery.data ?? []).map((d) => (
                 <option key={d.id} value={d.id}>
@@ -280,7 +265,7 @@ export default function ImportPage() {
 
       {!projectId && (
         <div className="mt-6">
-          <ErrorNote message="Nessun progetto presente: creane uno da Progetti." />
+          <ErrorNote message={t("importPage.noProjects")} />
         </div>
       )}
 
@@ -308,11 +293,13 @@ export default function ImportPage() {
               onClick={() =>
                 run(async () => {
                   const res = await detectStructure(projectId);
-                  return `Rilevamento struttura avviato (job ${res.job_id.slice(0, 8)}…).`;
+                  return t("importPage.detectStarted", {
+                    id: res.job_id.slice(0, 8),
+                  });
                 })
               }
             >
-              Rileva struttura
+              {t("importPage.detect")}
             </button>
             <button
               type="button"
@@ -321,12 +308,14 @@ export default function ImportPage() {
               onClick={() =>
                 run(async () => {
                   const res = await resegmentStructure(projectId);
-                  return `Risegmentazione selettiva avviata (job ${res.job_id.slice(0, 8)}…).`;
+                  return t("importPage.resegmentStarted", {
+                    id: res.job_id.slice(0, 8),
+                  });
                 })
               }
-              title="Rigenera solo i segmenti dei capitoli il cui confine è cambiato (§15.1)"
+              title={t("importPage.resegmentTitle")}
             >
-              Risegmenta dipendenti
+              {t("importPage.resegment")}
             </button>
             <button
               type="button"
@@ -335,15 +324,17 @@ export default function ImportPage() {
               onClick={() =>
                 run(async () => {
                   await undoStructureEdit(projectId);
-                  return "Ultima modifica annullata.";
+                  return t("importPage.undoDone");
                 })
               }
             >
-              Annulla modifica (undo)
+              {t("importPage.undo")}
             </button>
             {projectQuery.data && (
               <span className="ml-auto text-xs text-slate-500">
-                Stato progetto: {projectQuery.data.status}
+                {t("importPage.projectStatus", {
+                  status: projectQuery.data.status,
+                })}
               </span>
             )}
           </div>
@@ -354,7 +345,7 @@ export default function ImportPage() {
               <div className="card">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-slate-200">
-                    PDF originale
+                    {t("importPage.originalPdf")}
                   </h2>
                   <div className="flex items-center gap-1">
                     <button
@@ -366,7 +357,7 @@ export default function ImportPage() {
                       ←
                     </button>
                     <span className="min-w-20 text-center text-xs text-slate-400">
-                      Pag. {pageNumber}
+                      {t("importPage.page", { n: pageNumber })}
                       {totalPages ? ` / ${totalPages}` : ""}
                     </span>
                     <button
@@ -393,29 +384,34 @@ export default function ImportPage() {
               <div className="card flex flex-col">
                 <div className="mb-2 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-slate-200">
-                    Testo estratto — pagina {pageNumber}
+                    {t("importPage.extractedText", { n: pageNumber })}
                   </h2>
                   {pageQuery.data?.ocr_suspect && (
                     <span className="badge bg-amber-500/20 text-amber-300">
-                      OCR sospetto
+                      {t("importPage.ocrSuspect")}
                     </span>
                   )}
                 </div>
-                {pageQuery.isLoading && <Loading label="Caricamento pagina…" />}
+                {pageQuery.isLoading && (
+                  <Loading label={t("importPage.loadingPage")} />
+                )}
                 {pageQuery.isError && (
-                  <ErrorNote message="Pagina non disponibile (estrazione L1/OCR non ancora eseguita?)." />
+                  <ErrorNote message={t("importPage.pageUnavailable")} />
                 )}
                 {pageQuery.data && (
                   <>
                     <pre className="max-h-[480px] flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
                       {pageQuery.data.normalized_text?.trim() ||
-                        "(pagina senza testo estratto)"}
+                        t("importPage.emptyPage")}
                     </pre>
                     <p className="mt-2 text-xs text-slate-500">
-                      Livello: {pageQuery.data.level ?? "—"} · Confidenza:{" "}
-                      {pageQuery.data.confidence != null
-                        ? (pageQuery.data.confidence * 100).toFixed(1) + "%"
-                        : "—"}
+                      {t("importPage.levelConfidence", {
+                        level: pageQuery.data.level ?? "—",
+                        confidence:
+                          pageQuery.data.confidence != null
+                            ? (pageQuery.data.confidence * 100).toFixed(1) + "%"
+                            : "—",
+                      })}
                     </p>
                   </>
                 )}
@@ -424,7 +420,7 @@ export default function ImportPage() {
           ) : (
             documentsQuery.isSuccess && (
               <div className="mt-4">
-                <ErrorNote message="Nessun documento caricato su questo progetto." />
+                <ErrorNote message={t("importPage.noDocumentUploaded")} />
               </div>
             )
           )}
@@ -434,22 +430,25 @@ export default function ImportPage() {
             <section className="card xl:col-span-2">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-200">
-                  Struttura del libro
+                  {t("importPage.bookStructure")}
                 </h2>
                 <span className="text-xs text-slate-500">
                   {structureQuery.data
-                    ? `${structureQuery.data.user_confirmed} confermati · ${structureQuery.data.proposed} proposti`
+                    ? t("importPage.confirmedProposed", {
+                        confirmed: structureQuery.data.user_confirmed,
+                        proposed: structureQuery.data.proposed,
+                      })
                     : "—"}
                 </span>
               </div>
               {structureQuery.isLoading && <Loading />}
               {structureQuery.isError && (
-                <ErrorNote message="Impossibile caricare la struttura." />
+                <ErrorNote message={t("importPage.structureLoadError")} />
               )}
               {structureQuery.isSuccess &&
                 structureQuery.data.nodes.length === 0 && (
                   <p className="py-6 text-center text-sm text-slate-400">
-                    Nessun nodo: esegui il rilevamento della struttura.
+                    {t("importPage.noNodes")}
                   </p>
                 )}
               <ul className="space-y-1">
@@ -489,8 +488,10 @@ export default function ImportPage() {
               {selected && (
                 <div className="mt-4 rounded-md border border-slate-800 bg-slate-950/60 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {kindLabel(selected.kind)} selezionato ·{" "}
-                    {selected.source_label ?? "(senza titolo)"}
+                    {t("importPage.kindSelected", {
+                      kind: kindLabels[selected.kind] ?? selected.kind,
+                    })}{" "}
+                    · {selected.source_label ?? t("importPage.untitled")}
                   </p>
                   <div className="mt-3 flex flex-wrap items-end gap-2">
                     <button
@@ -500,11 +501,11 @@ export default function ImportPage() {
                       onClick={() =>
                         run(async () => {
                           await confirmNode(projectId, selected.node_id);
-                          return "Nodo confermato.";
+                          return t("importPage.nodeConfirmed");
                         })
                       }
                     >
-                      Conferma
+                      {t("common.confirm")}
                     </button>
                     <button
                       type="button"
@@ -515,7 +516,7 @@ export default function ImportPage() {
                         setRenameValue(selected.source_label ?? "");
                       }}
                     >
-                      Rinomina
+                      {t("importPage.rename")}
                     </button>
                     <button
                       type="button"
@@ -524,11 +525,11 @@ export default function ImportPage() {
                       onClick={() =>
                         run(async () => {
                           await moveNode(projectId, selected.node_id, "up");
-                          return "Capitolo spostato sopra.";
+                          return t("importPage.movedUp");
                         })
                       }
                     >
-                      ↑ Sposta su
+                      {t("importPage.moveUp")}
                     </button>
                     <button
                       type="button"
@@ -537,11 +538,11 @@ export default function ImportPage() {
                       onClick={() =>
                         run(async () => {
                           await moveNode(projectId, selected.node_id, "down");
-                          return "Capitolo spostato sotto.";
+                          return t("importPage.movedDown");
                         })
                       }
                     >
-                      ↓ Sposta giù
+                      {t("importPage.moveDown")}
                     </button>
                     {selected.kind !== "scene" && (
                       <div className="flex items-end gap-1">
@@ -550,7 +551,7 @@ export default function ImportPage() {
                             className="mb-1 block text-[11px] text-slate-500"
                             htmlFor="split-page"
                           >
-                            Dividi a pagina
+                            {t("importPage.splitAtPage")}
                           </label>
                           <input
                             id="split-page"
@@ -576,11 +577,11 @@ export default function ImportPage() {
                                 Number(splitPage)
                               );
                               setSplitPage("");
-                              return "Capitolo diviso.";
+                              return t("importPage.splitDone");
                             })
                           }
                         >
-                          Dividi
+                          {t("importPage.split")}
                         </button>
                       </div>
                     )}
@@ -589,7 +590,7 @@ export default function ImportPage() {
                         type="button"
                         className="btn-secondary px-3 py-1 text-xs"
                         disabled={busy}
-                        title="Unisci col capitolo precedente"
+                        title={t("importPage.mergePreviousTitle")}
                         onClick={() =>
                           run(async () => {
                             const nodes = structureQuery.data?.nodes ?? [];
@@ -602,7 +603,7 @@ export default function ImportPage() {
                             if (idx <= 0) {
                               throw new ApiError(
                                 409,
-                                "Nessun capitolo precedente da unire."
+                                t("importPage.noPreviousChapter")
                               );
                             }
                             await mergeNode(
@@ -611,11 +612,11 @@ export default function ImportPage() {
                               chapters[idx - 1].node_id
                             );
                             setSelectedId(null);
-                            return "Capitolo unito col precedente.";
+                            return t("importPage.mergeDone");
                           })
                         }
                       >
-                        Unisci col precedente
+                        {t("importPage.mergePrevious")}
                       </button>
                     )}
                     <button
@@ -626,11 +627,11 @@ export default function ImportPage() {
                         run(async () => {
                           await deleteNode(projectId, selected.node_id);
                           setSelectedId(null);
-                          return "Nodo eliminato (annullabile con undo).";
+                          return t("importPage.nodeDeleted");
                         })
                       }
                     >
-                      Elimina
+                      {t("common.delete")}
                     </button>
                   </div>
                   {renamingId === selected.node_id && (
@@ -640,7 +641,7 @@ export default function ImportPage() {
                           className="mb-1 block text-[11px] text-slate-500"
                           htmlFor="rename-input"
                         >
-                          Nuova etichetta
+                          {t("importPage.newLabel")}
                         </label>
                         <input
                           id="rename-input"
@@ -661,18 +662,18 @@ export default function ImportPage() {
                               renameValue.trim()
                             );
                             setRenamingId(null);
-                            return "Nodo rinominato.";
+                            return t("importPage.nodeRenamed");
                           })
                         }
                       >
-                        Salva
+                        {t("importPage.save")}
                       </button>
                       <button
                         type="button"
                         className="btn-secondary px-3 py-1 text-xs"
                         onClick={() => setRenamingId(null)}
                       >
-                        Annulla
+                        {t("common.cancel")}
                       </button>
                     </div>
                   )}
@@ -682,12 +683,12 @@ export default function ImportPage() {
               {/* --- crea nodo manuale (§5.3 "creare") -------------------- */}
               <div className="mt-4 rounded-md border border-dashed border-slate-800 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Nuovo nodo manuale
+                  {t("importPage.manualNodeTitle")}
                 </p>
                 <div className="mt-2 flex flex-wrap items-end gap-2">
                   <div>
                     <label className="mb-1 block text-[11px] text-slate-500" htmlFor="new-kind">
-                      Tipo
+                      {t("importPage.type")}
                     </label>
                     <select
                       id="new-kind"
@@ -697,16 +698,16 @@ export default function ImportPage() {
                         setNewNode((s) => ({ ...s, kind: e.target.value }))
                       }
                     >
-                      <option value="chapter">Capitolo</option>
-                      <option value="part">Parte</option>
-                      <option value="front_matter">Preliminari</option>
-                      <option value="back_matter">Appendice</option>
-                      <option value="footnote">Nota</option>
+                      {NODE_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {kindLabels[kind] ?? kind}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex-1">
                     <label className="mb-1 block text-[11px] text-slate-500" htmlFor="new-label">
-                      Etichetta
+                      {t("importPage.label")}
                     </label>
                     <input
                       id="new-label"
@@ -720,7 +721,7 @@ export default function ImportPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[11px] text-slate-500" htmlFor="new-start">
-                      Pagina inizio
+                      {t("importPage.startPage")}
                     </label>
                     <input
                       id="new-start"
@@ -733,7 +734,7 @@ export default function ImportPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[11px] text-slate-500" htmlFor="new-end">
-                      Pagina fine
+                      {t("importPage.endPage")}
                     </label>
                     <input
                       id="new-end"
@@ -763,11 +764,11 @@ export default function ImportPage() {
                             : Number(newNode.start),
                         });
                         setNewNode({ label: "", start: "", end: "", kind: "chapter" });
-                        return "Nodo creato (confermato, annullabile con undo).";
+                        return t("importPage.nodeCreated");
                       })
                     }
                   >
-                    Crea
+                    {t("importPage.create")}
                   </button>
                 </div>
               </div>
@@ -776,17 +777,15 @@ export default function ImportPage() {
             {/* --- pulizia header/footer + OCR (§5.3, §15.1) --------------- */}
             <section className="card">
               <h2 className="text-sm font-semibold text-slate-200">
-                Pulizia header/footer
+                {t("importPage.cleaningTitle")}
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Le righe ripetute sono eliminabili solo dopo conferma
-                algoritmica (§5.3); ogni applicazione conserva lo snapshot per
-                il rollback.
+                {t("importPage.cleaningDescription")}
               </p>
               {cleaningQuery.isLoading && <Loading />}
               {cleaningQuery.isError && (
                 <div className="mt-3">
-                  <ErrorNote message="Preview di pulizia non disponibile per questo documento." />
+                  <ErrorNote message={t("importPage.cleaningUnavailable")} />
                 </div>
               )}
               {cleaningQuery.data && (
@@ -805,29 +804,29 @@ export default function ImportPage() {
                     run(async () => {
                       await applyCleaning(projectId, documentId as string, checkedKeys);
                       setCheckedKeys([]);
-                      return "Pulizia applicata (rollback disponibile).";
+                      return t("importPage.cleaningApplied");
                     })
                   }
                   onRollback={() =>
                     run(async () => {
                       await rollbackCleaning(projectId, documentId as string);
                       setCheckedKeys([]);
-                      return "Testo ripristinato dallo snapshot.";
+                      return t("importPage.cleaningRolledBack");
                     })
                   }
                 />
               )}
 
               <h3 className="mt-6 text-sm font-semibold text-slate-200">
-                Pagina corrente
+                {t("importPage.currentPage")}
               </h3>
               {pageQuery.data?.ocr_suspect ? (
                 <div className="mt-2">
-                  <ErrorNote message="Questa pagina è marcata OCR sospetto: verifica il testo prima di tradurla." />
+                  <ErrorNote message={t("importPage.ocrWarning")} />
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-slate-500">
-                  Nessun problema OCR segnalato sulla pagina {pageNumber}.
+                  {t("importPage.ocrOk", { n: pageNumber })}
                 </p>
               )}
               {selected && selected.start_page != null && (
@@ -838,7 +837,7 @@ export default function ImportPage() {
                   onBoundary={(pages) =>
                     run(async () => {
                       await setBoundary(projectId, selected.node_id, pages);
-                      return "Confine corretto: esegui «Risegmenta dipendenti» per rigenerare i soli segmenti toccati (§15.1).";
+                      return t("importPage.boundaryDone");
                     })
                   }
                 />
@@ -863,6 +862,9 @@ function NodeRow({
   onSelect: () => void;
   onPageJump: (page: number) => void;
 }) {
+  const { t, dict } = useI18n();
+  const kindLabels = dict.enums.structureKind as Record<string, string>;
+  const methodLabels = dict.enums.detectionMethod as Record<string, string>;
   const confidencePct =
     node.confidence != null ? Math.round(node.confidence * 100) : null;
   return (
@@ -874,15 +876,19 @@ function NodeRow({
     >
       <span className="flex min-w-0 items-center gap-2">
         <span className="badge bg-slate-700 text-slate-300">
-          {kindLabel(node.kind)}
+          {kindLabels[node.kind] ?? node.kind}
         </span>
         <span className="truncate">
-          {node.normalized_title ?? node.source_label ?? "(senza titolo)"}
+          {node.normalized_title ?? node.source_label ?? t("importPage.untitled")}
         </span>
         {node.status === "user_confirmed" ? (
-          <span className="badge bg-emerald-500/15 text-emerald-300">confermato</span>
+          <span className="badge bg-emerald-500/15 text-emerald-300">
+            {t("importPage.confirmed")}
+          </span>
         ) : (
-          <span className="badge bg-violet-500/15 text-violet-300">proposto</span>
+          <span className="badge bg-violet-500/15 text-violet-300">
+            {t("importPage.proposed")}
+          </span>
         )}
       </span>
       <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
@@ -894,12 +900,15 @@ function NodeRow({
               e.stopPropagation();
               onPageJump(node.start_page as number);
             }}
-            title="Vai alla pagina nel viewer"
+            title={t("importPage.goToPage")}
           >
-            pp. {node.start_page}
-            {node.end_page != null && node.end_page !== node.start_page
-              ? `–${node.end_page}`
-              : ""}
+            {t("importPage.pagesRange", {
+              range:
+                node.start_page +
+                (node.end_page != null && node.end_page !== node.start_page
+                  ? `–${node.end_page}`
+                  : ""),
+            })}
           </button>
         )}
         {confidencePct != null && <span>{confidencePct}%</span>}
@@ -909,7 +918,7 @@ function NodeRow({
               key={m}
               className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400"
             >
-              {methodLabel(m)}
+              {methodLabels[m] ?? m}
             </span>
           ))}
         </span>
@@ -930,6 +939,7 @@ function BoundaryEditor({
   busy: boolean;
   onBoundary: (pages: { start_page?: number | null; end_page?: number | null }) => void;
 }) {
+  const { t } = useI18n();
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   useEffect(() => {
@@ -939,12 +949,13 @@ function BoundaryEditor({
   return (
     <div className="mt-4 rounded-md border border-slate-800 bg-slate-950/60 p-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Correzione confine · {node.normalized_title ?? node.source_label}
+        {t("importPage.boundaryTitle")} ·{" "}
+        {node.normalized_title ?? node.source_label}
       </p>
       <div className="mt-2 flex items-end gap-2">
         <div>
           <label className="mb-1 block text-[11px] text-slate-500" htmlFor="boundary-start">
-            Inizio
+            {t("importPage.boundaryStart")}
           </label>
           <input
             id="boundary-start"
@@ -955,7 +966,7 @@ function BoundaryEditor({
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-slate-500" htmlFor="boundary-end">
-            Fine
+            {t("importPage.boundaryEnd")}
           </label>
           <input
             id="boundary-end"
@@ -975,7 +986,7 @@ function BoundaryEditor({
             })
           }
         >
-          Applica confine
+          {t("importPage.applyBoundary")}
         </button>
       </div>
     </div>
@@ -998,11 +1009,12 @@ function CleaningPanel({
   onApply: () => void;
   onRollback: () => void;
 }) {
+  const { t } = useI18n();
   const candidates = preview.candidates ?? [];
   if (candidates.length === 0 && !preview.rollback_available) {
     return (
       <p className="mt-3 text-xs text-slate-500">
-        Nessuna riga ripetuta rilevata su {preview.total_pages} pagine.
+        {t("importPage.noRepeatedLines", { n: preview.total_pages })}
       </p>
     );
   }
@@ -1022,21 +1034,21 @@ function CleaningPanel({
                 checked={checkedState}
                 disabled={!c.algorithmically_confirmed}
                 onChange={(e) => onToggle(c.text, e.target.checked)}
-                aria-label={`Elimina "${c.text}"`}
+                aria-label={t("importPage.deleteLine", { text: c.text })}
               />
               <span className="min-w-0 flex-1 truncate text-slate-300" title={c.text}>
                 {c.text}
               </span>
               <span className="shrink-0 text-slate-500">
-                {c.pages ?? "?"} pag.
+                {t("importPage.pagesAbbr", { n: c.pages ?? "?" })}
               </span>
               {c.algorithmically_confirmed ? (
                 <span className="badge bg-emerald-500/10 text-emerald-400">
-                  confermata
+                  {t("importPage.lineConfirmed")}
                 </span>
               ) : (
                 <span className="badge bg-slate-700/50 text-slate-400">
-                  non confermata
+                  {t("importPage.lineNotConfirmed")}
                 </span>
               )}
             </li>
@@ -1050,7 +1062,7 @@ function CleaningPanel({
           disabled={busy || checked.length === 0}
           onClick={onApply}
         >
-          Elimina selezionate
+          {t("importPage.deleteSelected")}
         </button>
         <button
           type="button"
@@ -1058,12 +1070,12 @@ function CleaningPanel({
           disabled={busy || !preview.rollback_available}
           onClick={onRollback}
         >
-          Rollback
+          {t("importPage.rollback")}
         </button>
       </div>
       {preview.applied.length > 0 && (
         <p className="text-[11px] text-slate-500">
-          Applicate: {preview.applied.join(", ")}
+          {t("importPage.appliedList", { list: preview.applied.join(", ") })}
         </p>
       )}
     </div>

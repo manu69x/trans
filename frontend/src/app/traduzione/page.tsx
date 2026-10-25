@@ -40,6 +40,7 @@ import type { Job } from "@/lib/api-types";
 import { ErrorNote, Loading, StatusBadge } from "@/components/ui";
 import { QeText } from "@/components/qe-highlight";
 import { QUERY_KEY_JOBS } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
 /** Evidenzia le occorrenze della query nel testo (giallo, case-insensitive). */
 function SearchText({ text, query }: { text: string; query: string }) {
@@ -71,6 +72,8 @@ function SearchText({ text, query }: { text: string; query: string }) {
 
 export default function TranslationPage() {
   const queryClient = useQueryClient();
+  const { locale, t, dict } = useI18n();
+  const statusLabels = dict.enums.segmentStatus as Record<string, string>;
   const [projectId, setProjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
 
@@ -187,9 +190,9 @@ export default function TranslationPage() {
     mutationFn: () =>
       activeSegment
         ? approveSegment(projectId, activeSegment)
-        : Promise.reject(new Error("nessun segmento attivo")),
+        : Promise.reject(new Error(t("editor.errNoActiveSegment"))),
     onSuccess: () => {
-      setToast("Segmento approvato");
+      setToast(t("editor.segApproved"));
       queryClientRef.current.invalidateQueries({
         queryKey: QUERY_KEY_JOBS(projectId),
       });
@@ -201,9 +204,9 @@ export default function TranslationPage() {
     mutationFn: () =>
       activeSegment
         ? rejectSegment(projectId, activeSegment, reason || null)
-        : Promise.reject(new Error("nessun segmento attivo")),
+        : Promise.reject(new Error(t("editor.errNoActiveSegment"))),
     onSuccess: () => {
-      setToast("Segmento rifiutato");
+      setToast(t("editor.segRejected"));
       refresh();
     },
   });
@@ -212,14 +215,14 @@ export default function TranslationPage() {
     mutationFn: () =>
       activeSegment && target
         ? refineSegment(projectId, activeSegment, target, reason || null)
-        : Promise.reject(new Error("inserisci una traduzione")),
+        : Promise.reject(new Error(t("editor.errEmptyTranslation"))),
     onSuccess: () => {
-      setToast("Modifica salvata");
+      setToast(t("editor.editSaved"));
       setEditingTarget(false);
       refresh();
     },
     onError: (e: Error) =>
-      setToast(`Errore salvataggio: ${e.message}`),
+      setToast(t("editor.saveError", { msg: e.message })),
   });
 
   const searchMutation = useMutation({
@@ -232,7 +235,7 @@ export default function TranslationPage() {
             chapter_id: searchScope === "chapter" ? chapterId || null : null,
             apply: false,
           })
-        : Promise.reject(new Error("inserisci un termine da cercare")),
+        : Promise.reject(new Error(t("editor.errEmptySearch"))),
     onSuccess: (data) => {
       setSearchPreview(data);
       // Navigazione occorrenze: unione di sostituibili + approvati, in ordine.
@@ -270,19 +273,19 @@ export default function TranslationPage() {
   const segmentChapterMutation = useMutation({
     mutationFn: (nodeId: string) => segmentChapter(projectId, nodeId),
     onSuccess: () => {
-      setToast("Segmentazione avviata…");
+      setToast(t("editor.segStarted"));
       queryClientRef.current.invalidateQueries({
         queryKey: ["segmenti", projectId, chapterId],
       });
     },
-    onError: (e: Error) => setToast(`Errore segmentazione: ${e.message}`),
+    onError: (e: Error) => setToast(t("editor.segError", { msg: e.message })),
   });
 
   // Traduzione dei segmenti selezionati (§10.1): un job per blocco di 20.
   const translateSelectionMutation = useMutation({
     mutationFn: (ids: string[]) => runTranslation(projectId, ids),
     onSuccess: () => {
-      setToast("Traduzione avviata: i segmenti appariranno come bozza LLM");
+      setToast(t("editor.translateStarted"));
       setSelectedSegments(new Set());
       setSegAllPages(false);
       queryClientRef.current.invalidateQueries({
@@ -290,7 +293,7 @@ export default function TranslationPage() {
       });
       refresh();
     },
-    onError: (e: Error) => setToast(`Errore: ${e.message}`),
+    onError: (e: Error) => setToast(t("editor.genericError", { msg: e.message })),
   });
 
   // Verifica QE massiva (§10.2-bis): job asincrono, un forward pass per
@@ -307,7 +310,7 @@ export default function TranslationPage() {
         }
         await new Promise((r) => setTimeout(r, 4000));
       }
-      throw new Error("timeout verifica QE");
+      throw new Error(t("editor.errVerifyTimeout"));
     },
     onSuccess: (job) => {
       refresh();
@@ -316,12 +319,12 @@ export default function TranslationPage() {
       };
       if (job.status === "completed") {
         const n = result.verify?.total ?? "?";
-        setToast(`Verifica QE completata su ${n} segmenti`);
+        setToast(t("editor.qeDone", { n }));
       } else {
-        setToast(`Verifica QE fallita: ${job.error ?? "?"}`);
+        setToast(t("editor.qeFailed", { err: job.error ?? "?" }));
       }
     },
-    onError: (e: Error) => setToast(`Errore verifica QE: ${e.message}`),
+    onError: (e: Error) => setToast(t("editor.qeError", { msg: e.message })),
   });
 
   // Azioni massive di stato sui segmenti selezionati (§11.2): approvazione
@@ -331,13 +334,15 @@ export default function TranslationPage() {
       bulkSegmentStatus(projectId, input.ids, input.status),
     onSuccess: (res) => {
       setToast(
-        `${res.status === "approved" ? "Approvati" : "In bozza"}: ${res.updated} segmenti`
+        res.status === "approved"
+          ? t("editor.bulkApproved", { n: res.updated })
+          : t("editor.bulkDraft", { n: res.updated })
       );
       setSelectedSegments(new Set());
       setSegAllPages(false);
       refresh();
     },
-    onError: (e: Error) => setToast(`Errore: ${e.message}`),
+    onError: (e: Error) => setToast(t("editor.genericError", { msg: e.message })),
   });
 
   /** Toggle checkbox di un segmento. */
@@ -428,20 +433,18 @@ export default function TranslationPage() {
     return (
       <div className="mx-auto max-w-xl">
         <h1 className="text-2xl font-bold text-white">
-          Scegli il progetto da tradurre
+          {t("editor.pickTitle")}
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Seleziona un progetto per aprire l&apos;editor di traduzione.
-        </p>
+        <p className="mt-1 text-sm text-slate-400">{t("editor.pickHint")}</p>
         {projectsQuery.isLoading ? (
-          <Loading label="Caricamento progetti…" />
+          <Loading label={t("projects.loading")} />
         ) : projectsQuery.isError ? (
-          <ErrorNote message="Impossibile caricare i progetti dal backend." />
+          <ErrorNote message={t("projects.loadError")} />
         ) : projects.length === 0 ? (
           <p className="mt-4 text-sm text-slate-400">
-            Nessun progetto presente. Creane uno dalla pagina{" "}
+            {t("editor.pickEmpty")}{" "}
             <a href="/progetti/nuovo" className="text-indigo-300 underline">
-              Progetti
+              {t("editor.pickEmptyLink")}
             </a>
             .
           </p>
@@ -459,7 +462,8 @@ export default function TranslationPage() {
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
                     {p.source_language.toUpperCase()} →{" "}
-                    {p.target_language.toUpperCase()} · profilo {p.genre_profile}
+                    {p.target_language.toUpperCase()} ·{" "}
+                    {t("projectDetail.profile", { genre: p.genre_profile })}
                   </p>
                 </button>
               </li>
@@ -470,12 +474,10 @@ export default function TranslationPage() {
     );
   }
   if (segmentsQuery.isLoading) {
-    return <Loading label="Caricamento segmenti…" />;
+    return <Loading label={t("segments.loading")} />;
   }
   if (segmentsQuery.isError) {
-    return (
-      <ErrorNote message="Impossibile caricare i segmenti dal backend." />
-    );
+    return <ErrorNote message={t("editor.segmentsLoadError")} />;
   }
   const allSegments = segmentsQuery.data?.segments ?? [];
   // Niente useMemo: questo punto sta dopo gli early return di loading/errore
@@ -528,17 +530,12 @@ export default function TranslationPage() {
     );
     return (
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-bold text-white">
-          Nessun segmento: segmenta prima un capitolo
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          I segmenti CAT (§5.4) si generano dalla struttura rilevata. Scegli un
-          capitolo da segmentare, poi torna qui per tradurre.
-        </p>
+        <h1 className="text-2xl font-bold text-white">{t("editor.emptyTitle")}</h1>
+        <p className="mt-1 text-sm text-slate-400">{t("editor.emptyHint")}</p>
         {structureQuery.isLoading ? (
-          <Loading label="Caricamento struttura…" />
+          <Loading label={t("editor.loadingStructure")} />
         ) : segmentable.length === 0 ? (
-          <ErrorNote message="Nessun capitolo nella struttura: importa un documento e rileva la struttura prima." />
+          <ErrorNote message={t("editor.noChaptersError")} />
         ) : (
           <ul className="mt-4 max-h-96 space-y-2 overflow-y-auto">
             {segmentable.map((n) => (
@@ -547,11 +544,14 @@ export default function TranslationPage() {
                   {n.normalized_title || n.source_label}
                   <span className="ml-2 text-xs text-slate-500">
                     ({n.kind === "chapter"
-                      ? "capitolo"
+                      ? t("segments.kindChapter")
                       : n.kind === "part"
-                      ? "parte"
-                      : "preliminari"}
-                    {n.status === "user_confirmed" ? " · confermato" : ""})
+                      ? t("segments.kindPart")
+                      : t("segments.kindOther")}
+                    {n.status === "user_confirmed"
+                      ? ` · ${t("importPage.confirmed")}`
+                      : ""}
+                    )
                   </span>
                 </span>
                 <button
@@ -559,7 +559,7 @@ export default function TranslationPage() {
                   disabled={segmentChapterMutation.isPending}
                   className="rounded bg-indigo-500/25 px-3 py-1 text-xs text-indigo-200 hover:bg-indigo-500/35 disabled:opacity-40"
                 >
-                  Segmenta
+                  {t("segments.segmentOne")}
                 </button>
               </li>
             ))}
@@ -574,18 +574,12 @@ export default function TranslationPage() {
     );
   }
 
-  const STATUS_LABEL: Record<string, string> = {
-    untranslated: "Non tradotto",
-    machine_draft: "Bozza LLM",
-    approved: "Approvato",
-  };
-
   return (
     <div className="flex h-[calc(100vh-5rem)] flex-col">
       {/* Header filtri + selettore progetto */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-2">
         <label className="flex items-center gap-2 text-xs text-slate-500">
-          <span>Progetto:</span>
+          <span>{t("editor.projectLabel")}</span>
           <select
             value={projectId}
             onChange={(e) => switchProject(e.target.value)}
@@ -603,11 +597,11 @@ export default function TranslationPage() {
           </select>
         </label>
         <span className="text-xs font-semibold text-slate-200">
-          {segments.length} segmenti
+          {t("segments.segmentCount", { n: segments.length })}
         </span>
-        <span className="text-xs text-slate-500">Filtri:</span>
+        <span className="text-xs text-slate-500">{t("editor.filtersLabel")}</span>
         <label className="flex items-center gap-1 text-xs text-slate-400">
-          Sorgente
+          {t("editor.filterSource")}
           <select
             value={fSource}
             onChange={(e) =>
@@ -615,13 +609,13 @@ export default function TranslationPage() {
             }
             className="rounded bg-slate-800 px-1 py-1 text-xs text-white"
           >
-            <option value="all">Tutti</option>
-            <option value="untranslated">Solo non tradotto</option>
-            <option value="ocr">Solo OCR sospetto</option>
+            <option value="all">{t("editor.filterAll")}</option>
+            <option value="untranslated">{t("editor.filterUntranslated")}</option>
+            <option value="ocr">{t("editor.filterOcr")}</option>
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs text-slate-400">
-          Target
+          {t("editor.filterTarget")}
           <select
             value={fTarget}
             onChange={(e) =>
@@ -629,26 +623,26 @@ export default function TranslationPage() {
             }
             className="rounded bg-slate-800 px-1 py-1 text-xs text-white"
           >
-            <option value="all">Tutti</option>
-            <option value="approved">Solo approvati</option>
-            <option value="draft">Solo bozze</option>
-            <option value="qa">Solo con note Q/A</option>
+            <option value="all">{t("editor.filterAll")}</option>
+            <option value="approved">{t("editor.filterApproved")}</option>
+            <option value="draft">{t("editor.filterDrafts")}</option>
+            <option value="qa">{t("editor.filterQa")}</option>
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs text-slate-400">
-          QE DIFF
+          {t("editor.filterQeDiff")}
           <select
             value={fDiff}
             onChange={(e) => setFDiff(e.target.value as typeof fDiff)}
             className="rounded bg-slate-800 px-1 py-1 text-xs text-white"
           >
-            <option value="all">Tutti</option>
-            <option value="pos">DIFF positivo</option>
-            <option value="neg">DIFF negativo</option>
+            <option value="all">{t("editor.filterAll")}</option>
+            <option value="pos">{t("editor.filterDiffPos")}</option>
+            <option value="neg">{t("editor.filterDiffNeg")}</option>
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs text-slate-400">
-          TR maggiore di
+          {t("editor.filterTrAbove")}
           <select
             value={fTr}
             onChange={(e) => setFTr(Number(e.target.value))}
@@ -662,7 +656,7 @@ export default function TranslationPage() {
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs text-slate-400">
-          TR minore di
+          {t("editor.filterTrBelow")}
           <select
             value={fTrMax}
             onChange={(e) => setFTrMax(Number(e.target.value))}
@@ -680,11 +674,13 @@ export default function TranslationPage() {
             onClick={() => setSearchOpen((o) => !o)}
             className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700"
           >
-            {searchOpen ? "Nascondi ricerca" : "🔍 Cerca/sostituisci"}
+            {searchOpen ? t("editor.hideSearch") : t("editor.showSearch")}
           </button>
           <span className="text-xs text-slate-500">
-            {segmentsQuery.data?.machine_draft ?? 0} bozza ·{" "}
-            {segmentsQuery.data?.approved ?? 0} approvati
+            {t("editor.draftsApprovedSummary", {
+              drafts: segmentsQuery.data?.machine_draft ?? 0,
+              approved: segmentsQuery.data?.approved ?? 0,
+            })}
           </span>
         </span>
       </div>
@@ -693,25 +689,25 @@ export default function TranslationPage() {
       {searchOpen && (
         <div className="flex flex-wrap items-end gap-2 border-b border-slate-800 bg-slate-900/40 px-4 py-2">
           <label className="flex flex-col gap-1 text-xs text-slate-400">
-            <span>Cerca</span>
+            <span>{t("editor.searchLabel")}</span>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="rounded bg-slate-800 px-2 py-12 text-sm text-white"
-              placeholder="termine EN"
+              placeholder={t("editor.searchPlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-slate-400">
-            <span>Sostituisci</span>
+            <span>{t("editor.replaceLabel")}</span>
             <input
               value={searchReplaceWith}
               onChange={(e) => setSearchReplaceWith(e.target.value)}
               className="rounded bg-slate-800 px-2 py-12 text-sm text-white"
-              placeholder="testo IT"
+              placeholder={t("editor.replacePlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-slate-400">
-            <span>Scope</span>
+            <span>{t("editor.scopeLabel")}</span>
             <select
               value={searchScope}
               onChange={(e) =>
@@ -719,27 +715,29 @@ export default function TranslationPage() {
               }
               className="rounded bg-slate-800 px-2 py-12 text-sm text-white"
             >
-              <option value="project">Progetto</option>
-              <option value="chapter">Capitolo</option>
-              <option value="segment">Segmento</option>
+              <option value="project">{t("editor.scopeProject")}</option>
+              <option value="chapter">{t("editor.scopeChapter")}</option>
+              <option value="segment">{t("editor.scopeSegment")}</option>
             </select>
           </label>
           <button
             onClick={() => searchMutation.mutate()}
             className="rounded bg-indigo-500/25 px-2 py-12 text-sm text-indigo-200"
           >
-            Anteprima
+            {t("editor.preview")}
           </button>
           {searchPreview && (
             <div className="mt-1 max-w-xl text-xs text-slate-300">
               <div className="flex flex-wrap items-center gap-2">
                 <span>
                   <span className="text-emerald-300">{searchPreview.matches}</span>{" "}
-                  occorrenze
+                  {t("editor.occurrences")}
                   {(searchPreview.readonly_matches ?? 0) > 0 && (
                     <span className="text-amber-300">
                       {" "}
-                      ({searchPreview.readonly_matches} in approvati)
+                      {t("editor.inApproved", {
+                        n: searchPreview.readonly_matches ?? 0,
+                      })}
                     </span>
                   )}
                 </span>
@@ -754,9 +752,9 @@ export default function TranslationPage() {
                         )
                       }
                       className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
-                      title="Occorrenza precedente"
+                      title={t("editor.prevHitTitle")}
                     >
-                      ↑ Prec
+                      {t("editor.prevHit")}
                     </button>
                     <span className="text-slate-400">
                       {Math.min(searchHit + 1, searchHits.length)}/
@@ -767,25 +765,22 @@ export default function TranslationPage() {
                         setSearchHit((h) => (h + 1) % searchHits.length)
                       }
                       className="rounded bg-indigo-500/30 px-2 py-0.5 font-semibold text-indigo-100 hover:bg-indigo-500/45"
-                      title="Occorrenza successiva (segmento aperto nell'editor)"
+                      title={t("editor.nextHitTitle")}
                     >
-                      ↓ Next
+                      {t("editor.nextHit")}
                     </button>
                   </>
                 )}
               </div>
               {(searchPreview.readonly_matches ?? 0) > 0 && (
                 <div className="mt-1 text-amber-300">
-                  Le occorrenze in segmenti approvati sono visibili ma non
-                  sostituibili (§5.1 immutabilità): riporta il segmento a bozza
-                  per modificarle.
+                  {t("editor.readonlyNotice")}
                 </div>
               )}
               {searchPreview.matches === 0 &&
                 (searchPreview.readonly_matches ?? 0) > 0 && (
                   <div className="mt-1 text-slate-500">
-                    Nessuna sostituzione applicabile: tutte le occorrenze sono
-                    in segmenti approvati.
+                    {t("editor.noReplaceable")}
                   </div>
                 )}
             </div>
@@ -804,7 +799,7 @@ export default function TranslationPage() {
             }
             onChange={toggleAllSegments}
           />
-          Seleziona tutti
+          {t("segments.selectAll")}
         </label>
         <button
           onClick={() =>
@@ -814,8 +809,8 @@ export default function TranslationPage() {
           className="rounded bg-emerald-500/25 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-500/35 disabled:opacity-40"
         >
           {translateSelectionMutation.isPending
-            ? "Avvio…"
-            : `▶ Traduci selezionati (${selectedSegments.size})`}
+            ? t("editor.starting")
+            : t("editor.translateSelected", { n: selectedSegments.size })}
         </button>
         <button
           onClick={() =>
@@ -827,7 +822,7 @@ export default function TranslationPage() {
           disabled={selectedSegments.size === 0 || bulkStatusMutation.isPending}
           className="rounded bg-sky-500/25 px-3 py-1 text-xs text-sky-200 hover:bg-sky-500/35 disabled:opacity-40"
         >
-          ✓ Approva selezionati ({selectedSegments.size})
+          {t("editor.approveSelected", { n: selectedSegments.size })}
         </button>
         <button
           onClick={() =>
@@ -839,46 +834,47 @@ export default function TranslationPage() {
           disabled={selectedSegments.size === 0 || bulkStatusMutation.isPending}
           className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-200 hover:bg-amber-500/30 disabled:opacity-40"
         >
-          ↩ In bozza selezionati ({selectedSegments.size})
+          {t("editor.draftSelected", { n: selectedSegments.size })}
         </button>
         <button
           onClick={() => verifyMutation.mutate()}
           disabled={selectedSegments.size === 0 || verifyMutation.isPending}
-          title="Verifica QE sui segmenti selezionati"
+          title={t("editor.qeTitle")}
           className="rounded bg-violet-500/25 px-3 py-1 text-xs text-violet-200 hover:bg-violet-500/35 disabled:opacity-40"
         >
           {verifyMutation.isPending
-            ? "Verifica…"
-            : `🔍 Verifica QE selezionati (${selectedSegments.size})`}
+            ? t("editor.verifying")
+            : t("editor.qeSelected", { n: selectedSegments.size })}
         </button>
         <button
           onClick={async () => {
-            if (
-              !window.confirm(
-                "Annullare tutti i job in coda? I job in esecuzione finiranno il lavoro corrente."
-              )
-            ) {
+            if (!window.confirm(t("queueStop.confirm"))) {
               return;
             }
             try {
               const res = await stopQueue();
               setToast(
-                `Coda fermata: ${res.cancelled} job annullati, ${res.running_left} in esecuzione`
+                t("editor.queueStopped", {
+                  cancelled: res.cancelled,
+                  running: res.running_left,
+                })
               );
             } catch (e) {
-              setToast(`Errore stop coda: ${(e as Error).message}`);
+              setToast(
+                t("editor.queueStopError", { msg: (e as Error).message })
+              );
             }
           }}
           className="rounded bg-red-500/20 px-3 py-1 text-xs text-red-200 hover:bg-red-500/30"
         >
-          ⏹ Cancella coda job
+          {t("editor.cancelQueue")}
         </button>
         {selectedSegments.size > 0 && (
           <button
             onClick={() => setSelectedSegments(new Set())}
             className="text-xs text-slate-400 underline hover:text-slate-200"
           >
-            Deseleziona tutto
+            {t("editor.deselectAll")}
           </button>
         )}
       </div>
@@ -888,17 +884,17 @@ export default function TranslationPage() {
         {/* Pannello sinistro: lista segmenti EN */}
         <div className="flex w-full flex-col border-r border-slate-800 md:w-2/5 lg:w-2/5">
           <div className="flex items-center justify-between border-b border-slate-800 px-3 py-1 text-xs font-semibold text-slate-400">
-            <span>SORGENTE (EN)</span>
+            <span>{t("editor.sourcePanel")}</span>
             <span className="flex items-center gap-1 font-normal">
               <select
                 value={sortKey}
                 onChange={(e) =>
                   setSortKey(e.target.value as typeof sortKey)
                 }
-                title="Ordinamento per"
+                title={t("editor.sortBy")}
                 className="rounded bg-slate-800 px-1 py-0.5 text-[11px] text-white"
               >
-                <option value="numero">Numero</option>
+                <option value="numero">{t("editor.sortNumero")}</option>
                 <option value="it">IT</option>
                 <option value="tr">TR</option>
                 <option value="en">EN</option>
@@ -907,9 +903,7 @@ export default function TranslationPage() {
               <button
                 onClick={() => setSortAsc((v) => !v)}
                 title={
-                  sortAsc
-                    ? "Crescente — clicca per decrescente"
-                    : "Decrescente — clicca per crescente"
+                  sortAsc ? t("editor.sortAscTitle") : t("editor.sortDescTitle")
                 }
                 className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-700"
               >
@@ -958,13 +952,13 @@ export default function TranslationPage() {
                       {typeof seg.numero === "number" && (
                         <span
                           className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-300"
-                          title="Numero progressivo unico del segmento"
+                          title={t("segments.numeroTitle")}
                         >
                           N° {seg.numero}
                         </span>
                       )}
                       <span className="text-xs text-slate-500">
-                        {STATUS_LABEL[seg.status] ?? seg.status}
+                        {statusLabels[seg.status] ?? seg.status}
                       </span>
                       {seg.qa_critical > 0 && (
                         <span className="badge bg-red-500/20 text-red-300">
@@ -980,7 +974,7 @@ export default function TranslationPage() {
                       {typeof seg.is_italian === "number" && (
                         <span
                           className="badge bg-indigo-500/20 text-indigo-300"
-                          title="Verifica QE: probabilita' che il testo sia in italiano"
+                          title={t("editor.qeItTitle")}
                         >
                           IT {seg.is_italian.toFixed(2)}
                         </span>
@@ -988,7 +982,7 @@ export default function TranslationPage() {
                       {typeof seg.is_translated === "number" && (
                         <span
                           className="badge bg-indigo-500/20 text-indigo-300"
-                          title="Verifica QE: probabilità che il target sia la traduzione del sorgente"
+                          title={t("editor.qeTrTitle")}
                         >
                           TR {seg.is_translated.toFixed(2)}
                         </span>
@@ -996,7 +990,7 @@ export default function TranslationPage() {
                       {typeof seg.is_english === "number" && (
                         <span
                           className="badge bg-indigo-500/20 text-indigo-300"
-                          title="Verifica QE: probabilità che il testo sia in inglese (alta = sospetto)"
+                          title={t("editor.qeEnTitle")}
                         >
                           EN {seg.is_english.toFixed(2)}
                         </span>
@@ -1008,7 +1002,7 @@ export default function TranslationPage() {
                               ? "bg-emerald-500/20 text-emerald-300"
                               : "bg-red-500/20 text-red-300"
                           }`}
-                          title="Verifica QE: DIFF = IT − EN (zero o negativa: bozza probabilmente inglese)"
+                          title={t("editor.qeDiffTitle")}
                         >
                           DIFF {seg.qe_diff >= 0 ? "+" : ""}
                           {seg.qe_diff.toFixed(2)}
@@ -1030,9 +1024,9 @@ export default function TranslationPage() {
         <div className="flex w-full flex-col border-r border-slate-800 md:w-1/3 lg:w-[35%]">
           <div className="flex items-center justify-between border-b border-slate-800 px-3 py-1 text-xs font-semibold text-slate-400">
             <span>
-              TARGET (IT) ·{" "}
+              {t("editor.targetPanel")} ·{" "}
               {activeSegmentData
-                ? STATUS_LABEL[activeSegmentData.status] ??
+                ? statusLabels[activeSegmentData.status] ??
                   activeSegmentData.status
                 : ""}
             </span>
@@ -1040,7 +1034,7 @@ export default function TranslationPage() {
               onClick={() => setShowVersions((v) => !v)}
               className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700"
             >
-              {showVersions ? "Chiudi storico" : "🕗 Storico"}
+              {showVersions ? t("editor.closeHistory") : t("editor.openHistory")}
             </button>
             {activeSegmentData?.status !== "approved" && !showVersions && (
               <button
@@ -1050,7 +1044,7 @@ export default function TranslationPage() {
                     // altrimenti resta solo nello stato locale del browser
                     // e si perde al refresh (bug 2026-10-01, segmento 236).
                     if (!target.trim()) {
-                      setToast("Il testo non può essere vuoto");
+                      setToast(t("editor.emptyText"));
                       return;
                     }
                     refineMutation.mutate();
@@ -1067,16 +1061,16 @@ export default function TranslationPage() {
               >
                 {editingTarget
                   ? refineMutation.isPending
-                    ? "Salvataggio…"
-                    : "💾 Salva"
-                  : "✏️ Modifica"}
+                    ? t("editor.saving")
+                    : t("editor.save")
+                  : t("editor.edit")}
               </button>
             )}
           </div>
           {showVersions ? (
             <div className="flex min-h-0 flex-1 overflow-y-auto p-3">
               {versionsQuery.isLoading ? (
-                <Loading label="Caricamento versione…" />
+                <Loading label={t("editor.loadingVersion")} />
               ) : (
                 <div className="w-full space-y-2">
                   {versionsQuery.data?.history
@@ -1088,9 +1082,14 @@ export default function TranslationPage() {
                         className="rounded border border-slate-700 bg-slate-800/50 p-2"
                       >
                         <div className="text-xs text-slate-500">
-                          {v.before ? "PRECEDENTE" : "NUOVO"} · {v.action} ·{" "}
+                          {v.before
+                            ? t("editor.previousVersion")
+                            : t("editor.newVersion")}{" "}
+                          · {v.action} ·{" "}
                           {v.created_at
-                            ? new Date(v.created_at).toLocaleString("it-IT")
+                            ? new Date(v.created_at).toLocaleString(
+                                locale === "it" ? "it-IT" : "en-GB"
+                              )
                             : ""}
                         </div>
                         <p className="mt-1 text-sm text-white">
@@ -1126,7 +1125,7 @@ export default function TranslationPage() {
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   disabled={activeSegmentData?.status === "approved"}
-                  placeholder="Traduzione IT…"
+                  placeholder={t("editor.targetPlaceholder")}
                   className="min-h-60 flex-1 resize-none rounded bg-slate-800/50 px-2 py-1 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               ) : (
@@ -1141,7 +1140,7 @@ export default function TranslationPage() {
         {/* Pannello destro: QA + azioni */}
         <div className="flex w-full flex-col md:w-1/3 lg:w-1/4">
           <div className="border-b border-slate-800 px-3 py-1 text-xs font-semibold text-slate-400">
-            QA & AZIONI
+            {t("editor.qaPanel")}
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
             {/* Bottoni azione */}
@@ -1151,14 +1150,14 @@ export default function TranslationPage() {
                 disabled={!activeSegment}
                 className="w-full rounded bg-emerald-500/25 py-1 text-sm text-emerald-200 hover:bg-emerald-500/35 disabled:opacity-40"
               >
-                ✓ Approva (Ctrl+Enter)
+                {t("editor.approve")}
               </button>
               <button
                 onClick={() => rejectMutation.mutate()}
                 disabled={!activeSegment}
                 className="w-full rounded bg-red-500/20 py-1 text-sm text-red-200 hover:bg-red-500/30 disabled:opacity-40"
               >
-                ✕ Rifiuta
+                {t("editor.reject")}
               </button>
             </div>
 
@@ -1167,19 +1166,21 @@ export default function TranslationPage() {
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Motivo / note (opzionale)…"
+                placeholder={t("editor.reasonPlaceholder")}
                 rows={3}
                 className="w-full resize-none rounded bg-slate-800 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
               <span className="mt-1 block text-xs text-slate-500">
-                Ctrl+Enter approva
+                {t("editor.ctrlEnterHint")}
               </span>
             </div>
 
             {/* QA issues */}
             <div className="mt-3">
               <h3 className="text-xs font-semibold text-slate-400">
-                QA issues ({qaQuery.data?.critical_unresolved ?? 0} critici)
+                {t("editor.qaIssuesTitle", {
+                  n: qaQuery.data?.critical_unresolved ?? 0,
+                })}
               </h3>
               <div className="mt-1 space-y-1">
                 {qaQuery.data?.issues
@@ -1194,7 +1195,9 @@ export default function TranslationPage() {
                       }`}
                     >
                       <span className="font-semibold">
-                        {i.severity === "critical" ? "CRITICO" : "WARN"}
+                        {i.severity === "critical"
+                          ? t("editor.critical")
+                          : t("editor.warn")}
                       </span>{" "}
                       {i.message}
                     </div>
@@ -1204,7 +1207,7 @@ export default function TranslationPage() {
                     (i: QaIssue) => i.segment_id === activeSegment
                   ).length === 0) && (
                   <p className="text-xs text-slate-500">
-                    Nessun QA issue per questo segmento.
+                    {t("editor.noQaIssues")}
                   </p>
                 )}
               </div>

@@ -13,8 +13,10 @@ import {
 } from "@/components/ui";
 import { listProjects } from "@/lib/api";
 import { QUERY_KEY_PROJECTS } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
 export default function ProjectsPage() {
+  const { locale, t } = useI18n();
   const projectsQuery = useQuery({
     queryKey: QUERY_KEY_PROJECTS,
     queryFn: listProjects,
@@ -26,16 +28,16 @@ export default function ProjectsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Progetti</h1>
+        <h1 className="text-2xl font-bold text-white">{t("projects.title")}</h1>
         <Link href="/progetti/nuovo" className="btn-primary">
-          Nuovo progetto
+          {t("projects.newProject")}
         </Link>
       </header>
 
-      {projectsQuery.isLoading && <Loading label="Caricamento progetti…" />}
+      {projectsQuery.isLoading && <Loading label={t("projects.loading")} />}
       {projectsQuery.isError && (
         <div className="mt-4">
-          <ErrorNote message="Impossibile caricare i progetti dal backend." />
+          <ErrorNote message={t("projects.loadError")} />
         </div>
       )}
 
@@ -43,7 +45,7 @@ export default function ProjectsPage() {
         <ul className="mt-6 divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-900/40">
           {projects.length === 0 && (
             <li className="px-4 py-8 text-center text-sm text-slate-400">
-              Nessun progetto presente.
+              {t("projects.empty")}
             </li>
           )}
           {projects.map((project) => (
@@ -57,8 +59,10 @@ export default function ProjectsPage() {
                   <p className="text-xs text-slate-400">
                     {project.genre_profile} ·{" "}
                     {project.source_language.toUpperCase()} →{" "}
-                    {project.target_language.toUpperCase()} · creato il{" "}
-                    {formatDateTime(project.created_at)}
+                    {project.target_language.toUpperCase()} ·{" "}
+                    {t("projects.createdOn", {
+                      date: formatDateTime(project.created_at, locale),
+                    })}
                   </p>
                 </div>
                 <StatusBadge status={project.status} />

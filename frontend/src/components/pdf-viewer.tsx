@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 
 import { authFetch } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface PdfViewerProps {
   projectId: string | null;
@@ -29,6 +30,7 @@ export default function PdfViewer({
   pageNumber,
   className,
 }: PdfViewerProps) {
+  const { t } = useI18n();
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +72,7 @@ export default function PdfViewer({
         className={`${className ?? ""} flex items-center justify-center p-4`}
       >
         <p className="text-sm text-slate-400">
-          PDF non caricabile ({error}): riprova o ricarica la pagina.
+          {t("common.pdfError", { error })}
         </p>
       </div>
     );
@@ -80,7 +82,7 @@ export default function PdfViewer({
       <div
         className={`${className ?? ""} flex items-center justify-center p-4`}
       >
-        <p className="text-sm text-slate-500">Caricamento PDF…</p>
+        <p className="text-sm text-slate-500">{t("common.pdfLoading")}</p>
       </div>
     );
   }
@@ -90,12 +92,12 @@ export default function PdfViewer({
       data={pageNumber ? `${url}#page=${pageNumber}` : url}
       type="application/pdf"
       className={className}
-      aria-label={`PDF del documento ${filename}`}
+      aria-label={t("common.pdfAria", { filename })}
     >
       <p className="p-4 text-sm text-slate-400">
-        Il browser non mostra il PDF incorporato:{" "}
+        {t("common.pdfFallback")}{" "}
         <a className="text-indigo-300 underline" href={url} target="_blank" rel="noreferrer">
-          apri il file
+          {t("common.pdfOpenLink")}
         </a>
         .
       </p>

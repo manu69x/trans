@@ -37,13 +37,8 @@ import {
   type QaIssue,
   type EditorSegment,
 } from "@/lib/api";
-import {
-  MQM_CATEGORY_LABEL_IT,
-  MQM_GROUP_LABEL_IT,
-  MQM_SEVERITY_CLASS,
-  MQM_SEVERITY_LABEL_IT,
-  QA_KIND_LABEL_IT,
-} from "@/lib/constants";
+import { MQM_SEVERITY_CLASS } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
 /** Escapes per RegExp (evidenziazione span nel target). */
 function escapeRegExp(s: string): string {
@@ -78,35 +73,25 @@ function highlight(text: string, span: string | null | undefined): ReactNode {
   );
 }
 
-const SEVERITY_OPTS = [
-  ["", "Tutte"],
-  ["minor", "Minore"],
-  ["major", "Maggiore"],
-  ["critical", "Critico"],
-] as const;
-
-const KIND_OPTS = [
-  ["", "Tutti"],
-  ["human", "Annotazione"],
-  ["qa", "Deterministico"],
-  ["critic", "Critic"],
-  ["qe", "QE"],
-  ["ocr", "OCR"],
-  ["entity", "Entità"],
-] as const;
-
-const GROUP_OPTS = [
-  ["", "Tutti"],
-  ["accuracy", "Accuratezza"],
-  ["terminology", "Terminologia"],
-  ["italian", "Italiano"],
-  ["style", "Stile"],
-  ["locale", "Locale"],
-  ["source", "Sorgente"],
+const SEVERITY_VALUES = ["", "minor", "major", "critical"] as const;
+const KIND_VALUES = ["", "human", "qa", "critic", "qe", "ocr", "entity"] as const;
+const GROUP_VALUES = [
+  "",
+  "accuracy",
+  "terminology",
+  "italian",
+  "style",
+  "locale",
+  "source",
 ] as const;
 
 export default function QaPage() {
   const queryClient = useQueryClient();
+  const { t, dict } = useI18n();
+  const mqmGroups = dict.enums.mqmGroup as Record<string, string>;
+  const mqmCategories = dict.enums.mqmCategory as Record<string, string>;
+  const mqmSeverities = dict.enums.mqmSeverity as Record<string, string>;
+  const qaKinds = dict.enums.qaKind as Record<string, string>;
 
   // --- progetto ---
   const projectsQuery = useQuery({ queryKey: ["progetti"], queryFn: listProjects });
@@ -203,9 +188,13 @@ export default function QaPage() {
         severity: payload.severity,
         category: payload.category,
         kind: "human",
-        message: `Annotazione MQM · ${
-          MQM_CATEGORY_LABEL_IT[payload.category] ?? payload.category
-        }${payload.span ? ` · «${payload.span}»` : ""}`,
+        message:
+          t("qaPage.annotationMessage", {
+            category: mqmCategories[payload.category] ?? payload.category,
+          }) +
+          (payload.span
+            ? t("qaPage.annotationSpanSuffix", { span: payload.span })
+            : ""),
         span: payload.span || null,
         comment: payload.comment || null,
       }),
@@ -237,11 +226,11 @@ export default function QaPage() {
   if (!projectId) {
     return (
       <div className="space-y-3">
-        <h1 className="text-xl font-semibold">QA</h1>
+        <h1 className="text-xl font-semibold">{t("qaPage.title")}</h1>
         {projectsQuery.isLoading ? (
-          <Loading label="Caricamento progetti…" />
+          <Loading label={t("projects.loading")} />
         ) : (
-          <ErrorNote message="Nessun progetto disponibile." />
+          <ErrorNote message={t("preview.noProjects")} />
         )}
       </div>
     );
@@ -256,7 +245,7 @@ export default function QaPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">QA</h1>
+        <h1 className="text-xl font-semibold">{t("qaPage.title")}</h1>
         <select
           value={projectId}
           onChange={(e) => {
@@ -264,7 +253,7 @@ export default function QaPage() {
             setSelectedId(null);
           }}
           className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white"
-          aria-label="Progetto"
+          aria-label={t("importPage.project")}
         >
           {projectsQuery.data?.map((p) => (
             <option key={p.id} value={p.id}>
@@ -273,35 +262,37 @@ export default function QaPage() {
           ))}
         </select>
         <span className="text-xs text-slate-500">
-          {issues.length} issue ·{" "}
-          {issuesQuery.data?.critical_unresolved ?? 0} critiche aperte
+          {t("qaPage.issuesSummary", {
+            n: issues.length,
+            critical: issuesQuery.data?.critical_unresolved ?? 0,
+          })}
         </span>
       </div>
 
       {/* Filtri (§11.1: severità / capitolo / tipo) */}
       <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-3 py-2">
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          <span>Severità</span>
+          <span>{t("qaPage.severity")}</span>
           <select
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
             className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
           >
-            {SEVERITY_OPTS.map(([v, l]) => (
+            {SEVERITY_VALUES.map((v) => (
               <option key={v} value={v}>
-                {l}
+                {v === "" ? t("qaPage.allF") : (mqmSeverities[v] ?? v)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          <span>Capitolo</span>
+          <span>{t("promptModels.chapterLabel")}</span>
           <select
             value={chapterId}
             onChange={(e) => setChapterId(e.target.value)}
             className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
           >
-            <option value="">Tutti</option>
+            <option value="">{t("editor.filterAll")}</option>
             {chapters.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -310,43 +301,43 @@ export default function QaPage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          <span>Tipo</span>
+          <span>{t("importPage.type")}</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
             className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
           >
-            {KIND_OPTS.map(([v, l]) => (
+            {KIND_VALUES.map((v) => (
               <option key={v} value={v}>
-                {l}
+                {v === "" ? t("editor.filterAll") : (qaKinds[v] ?? v)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          <span>Categoria MQM</span>
+          <span>{t("qaPage.category")}</span>
           <select
             value={group}
             onChange={(e) => setGroup(e.target.value)}
             className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
           >
-            {GROUP_OPTS.map(([v, l]) => (
+            {GROUP_VALUES.map((v) => (
               <option key={v} value={v}>
-                {l}
+                {v === "" ? t("editor.filterAll") : (mqmGroups[v] ?? v)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          <span>Stato</span>
+          <span>{t("qaPage.state")}</span>
           <select
             value={resolved}
             onChange={(e) => setResolved(e.target.value as typeof resolved)}
             className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
           >
-            <option value="all">Tutte</option>
-            <option value="open">Aperte</option>
-            <option value="done">Risolte</option>
+            <option value="all">{t("qaPage.allF")}</option>
+            <option value="open">{t("qaPage.openF")}</option>
+            <option value="done">{t("qaPage.resolvedF")}</option>
           </select>
         </label>
       </div>
@@ -355,19 +346,21 @@ export default function QaPage() {
         {/* SINISTRA: lista issue */}
         <div className="flex max-h-[70vh] flex-col rounded-md border border-slate-800">
           <div className="border-b border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400">
-            LISTA ISSUE ({issues.length})
+            {t("qaPage.issueList", { n: issues.length })}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {issuesQuery.isLoading && <Loading label="Caricamento issue…" />}
+            {issuesQuery.isLoading && (
+              <Loading label={t("qaPage.loadingIssues")} />
+            )}
             {issuesQuery.isError && (
               <div className="p-3">
-                <ErrorNote message="Impossibile caricare le issue." />
+                <ErrorNote message={t("qaPage.issuesError")} />
               </div>
             )}
             {!issuesQuery.isLoading &&
               issues.length === 0 && (
                 <p className="p-3 text-xs text-slate-500">
-                  Nessuna issue con i filtri correnti.
+                  {t("qaPage.noIssues")}
                 </p>
               )}
             {issues.map((i) => (
@@ -384,26 +377,26 @@ export default function QaPage() {
                   <span
                     className={`badge ${MQM_SEVERITY_CLASS[i.severity] ?? ""}`}
                   >
-                    {MQM_SEVERITY_LABEL_IT[i.severity] ?? i.severity}
+                    {mqmSeverities[i.severity] ?? i.severity}
                   </span>
                   <span className="badge bg-slate-800 text-slate-300">
-                    {QA_KIND_LABEL_IT[i.kind] ?? i.kind}
+                    {qaKinds[i.kind] ?? i.kind}
                   </span>
                   {i.category && (
                     <span className="badge bg-slate-700 text-slate-200">
-                      {MQM_CATEGORY_LABEL_IT[i.category] ?? i.category}
+                      {mqmCategories[i.category] ?? i.category}
                     </span>
                   )}
                   {i.resolved && (
                     <span className="badge bg-emerald-500/20 text-emerald-300">
-                      Risolta
+                      {t("qaPage.resolvedBadge")}
                     </span>
                   )}
                 </div>
                 <p className="mt-1 text-sm text-slate-200">{i.message}</p>
                 {i.span && (
                   <p className="mt-0.5 text-xs text-slate-500">
-                    span: «{i.span}»
+                    {t("qaPage.spanLabel", { span: i.span })}
                   </p>
                 )}
                 {i.comment && (
@@ -419,27 +412,34 @@ export default function QaPage() {
         {/* CENTRO: revisione affiancata EN/IT dello span */}
         <div className="flex max-h-[70vh] flex-col rounded-md border border-slate-800">
           <div className="border-b border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400">
-            REVISIONE AFFIANCATA {selected ? `(seg. ${selected.segment_id.slice(0, 8)}…)` : ""}
+            {t("qaPage.reviewTitle")}{" "}
+            {selected
+              ? t("qaPage.reviewSeg", {
+                  id: selected.segment_id.slice(0, 8),
+                })
+              : ""}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {!selected ? (
-              <p className="text-xs text-slate-500">
-                Seleziona un&rsquo;issue a sinistra per la revisione affiancata.
-              </p>
+              <p className="text-xs text-slate-500">{t("qaPage.pickIssue")}</p>
             ) : !segment ? (
               <p className="text-xs text-slate-500">
-                Caricamento del segmento…
+                {t("qaPage.loadingSegment")}
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <div className="mb-1 text-xs text-slate-500">SORGENTE (EN)</div>
+                  <div className="mb-1 text-xs text-slate-500">
+                    {t("editor.sourcePanel")}
+                  </div>
                   <p className="whitespace-pre-wrap rounded bg-slate-800/50 p-2 text-sm text-slate-200">
                     {segment.source_text}
                   </p>
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-slate-500">TARGET (IT)</div>
+                  <div className="mb-1 text-xs text-slate-500">
+                    {t("editor.targetPanel")}
+                  </div>
                   <p className="whitespace-pre-wrap rounded bg-slate-800/50 p-2 text-sm text-white">
                     {highlight(segment.target_text ?? "", selected.span)}
                   </p>
@@ -453,7 +453,9 @@ export default function QaPage() {
                 onClick={() => resolveMutation.mutate(selected.id)}
                 className="rounded bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700"
               >
-                {selected.resolved ? "Riapri issue" : "Segna risolta"}
+                {selected.resolved
+                  ? t("qaPage.reopen")
+                  : t("qaPage.markResolved")}
               </button>
             </div>
           )}
@@ -464,18 +466,18 @@ export default function QaPage() {
           {/* Annotazione su span (§10.4) */}
           <div className="rounded-md border border-slate-800 p-3">
             <h3 className="text-xs font-semibold text-slate-400">
-              ANNOTAZIONE MQM SU SPAN
+              {t("qaPage.annotationTitle")}
             </h3>
             <p className="mt-1 text-xs text-slate-500">
-              Segmento:{" "}
+              {t("qaPage.segmentLabel")}{" "}
               <span className="text-slate-300">
                 {annoSegmentId ? `#${annoSegmentId.slice(0, 8)}…` : "—"}
               </span>
-              {selected && " (dell'issue selezionata)"}
+              {selected ? ` ${t("qaPage.ofSelectedIssue")}` : ""}
             </p>
             <div className="mt-2 space-y-2">
               <label className="flex flex-col gap-1 text-xs text-slate-400">
-                <span>Gruppo</span>
+                <span>{t("qaPage.group")}</span>
                 <select
                   value={annoCatGroup}
                   onChange={(e) => {
@@ -485,15 +487,15 @@ export default function QaPage() {
                   className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
                 >
                   <option value="">—</option>
-                  {Object.keys(MQM_GROUP_LABEL_IT).map((g) => (
+                  {GROUP_VALUES.filter(Boolean).map((g) => (
                     <option key={g} value={g}>
-                      {MQM_GROUP_LABEL_IT[g]}
+                      {mqmGroups[g] ?? g}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-xs text-slate-400">
-                <span>Categoria</span>
+                <span>{t("qaPage.category")}</span>
                 <select
                   value={annoCategory}
                   onChange={(e) => setAnnoCategory(e.target.value)}
@@ -503,13 +505,13 @@ export default function QaPage() {
                   <option value="">—</option>
                   {categoryOptions.map((c) => (
                     <option key={c} value={c}>
-                      {MQM_CATEGORY_LABEL_IT[c] ?? c}
+                      {mqmCategories[c] ?? c}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-xs text-slate-400">
-                <span>Gravità</span>
+                <span>{t("qaPage.severityField")}</span>
                 <select
                   value={annoSeverity}
                   onChange={(e) =>
@@ -517,29 +519,29 @@ export default function QaPage() {
                   }
                   className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
                 >
-                  {Object.entries(MQM_SEVERITY_LABEL_IT).map(([v, l]) => (
+                  {Object.keys(mqmSeverities).map((v) => (
                     <option key={v} value={v}>
-                      {l}
+                      {mqmSeverities[v]}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-xs text-slate-400">
-                <span>Span nel target</span>
+                <span>{t("qaPage.spanField")}</span>
                 <input
                   value={annoSpan}
                   onChange={(e) => setAnnoSpan(e.target.value)}
-                  placeholder="es. gattone"
+                  placeholder={t("qaPage.spanPlaceholder")}
                   className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs text-slate-400">
-                <span>Commento</span>
+                <span>{t("qaPage.comment")}</span>
                 <textarea
                   value={annoComment}
                   onChange={(e) => setAnnoComment(e.target.value)}
                   rows={2}
-                  placeholder="Nota per il revisore…"
+                  placeholder={t("qaPage.commentPlaceholder")}
                   className="resize-none rounded bg-slate-800 px-2 py-1 text-sm text-white"
                 />
               </label>
@@ -555,7 +557,7 @@ export default function QaPage() {
                 }
                 className="w-full rounded bg-indigo-500/25 py-1.5 text-sm text-indigo-200 hover:bg-indigo-500/35 disabled:opacity-40"
               >
-                Salva annotazione
+                {t("qaPage.saveAnnotation")}
               </button>
               {annotateMutation.isError && (
                 <p className="text-xs text-red-300">
@@ -568,37 +570,41 @@ export default function QaPage() {
           {/* Report MQM per 1.000 parole (§18.2) */}
           <div className="rounded-md border border-slate-800 p-3">
             <h3 className="text-xs font-semibold text-slate-400">
-              REPORT MQM · PER 1.000 PAROLE
+              {t("qaPage.reportTitle")}
             </h3>
-            {mqmQuery.isLoading && <Loading label="Calcolo…" />}
+            {mqmQuery.isLoading && <Loading label={t("qaPage.computing")} />}
             {mqmQuery.isError && (
-              <ErrorNote message="Impossibile calcolare il report MQM." />
+              <ErrorNote message={t("qaPage.reportError")} />
             )}
             {mqmQuery.data && (
               <div className="mt-2 space-y-2 text-xs text-slate-300">
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   <span>
-                    Parole sorgente:{" "}
+                    {t("qaPage.sourceWords")}{" "}
                     <b>{mqmQuery.data.n_source_words}</b>
                   </span>
                   <span>
-                    Issue: <b>{mqmQuery.data.total_issues}</b>
+                    {t("qaPage.issuesTotal")} <b>{mqmQuery.data.total_issues}</b>
                   </span>
                   <span>
-                    MQM/1000: <b>{mqmQuery.data.per_1000_all}</b>
+                    {t("qaPage.per1000")} <b>{mqmQuery.data.per_1000_all}</b>
                   </span>
                 </div>
                 {mqmQuery.data.by_category_severity && (
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-left text-slate-500">
-                        <th className="py-1 pr-2 font-normal">Categoria</th>
-                        {Object.keys(MQM_SEVERITY_LABEL_IT).map((s) => (
+                        <th className="py-1 pr-2 font-normal">
+                          {t("qaPage.categoryCol")}
+                        </th>
+                        {Object.keys(mqmSeverities).map((s) => (
                           <th key={s} className="py-1 pr-2 font-normal">
-                            {MQM_SEVERITY_LABEL_IT[s]}/1000
+                            {t("qaPage.per1000Col", { sev: mqmSeverities[s] })}
                           </th>
                         ))}
-                        <th className="py-1 font-normal">Totale</th>
+                        <th className="py-1 font-normal">
+                          {t("qaPage.totalCol")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -606,9 +612,9 @@ export default function QaPage() {
                         ([cat, count]) => (
                           <tr key={cat} className="border-t border-slate-800">
                             <td className="py-1 pr-2">
-                              {MQM_CATEGORY_LABEL_IT[cat] ?? cat}
+                              {mqmCategories[cat] ?? cat}
                             </td>
-                            {Object.keys(MQM_SEVERITY_LABEL_IT).map((s) => (
+                            {Object.keys(mqmSeverities).map((s) => (
                               <td key={s} className="py-1 pr-2">
                                 {mqmQuery.data.by_category_severity[cat]?.[s] ??
                                   0}

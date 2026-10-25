@@ -9,12 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
-import {
-  Loading,
-  ErrorNote,
-  StatusBadge,
-  formatDateTime,
-} from "@/components/ui";
+import { Loading, ErrorNote, StatusBadge, formatDateTime } from "@/components/ui";
 import {
   deleteProject,
   listGatewayModels,
@@ -22,13 +17,12 @@ import {
   listProjectJobs,
 } from "@/lib/api";
 import {
-  JOB_STATUS_LABEL_IT,
-  JOB_TYPE_LABEL_IT,
   QUERY_KEY_JOBS,
   QUERY_KEY_MODELS,
   QUERY_KEY_PROJECTS,
 } from "@/lib/constants";
 import type { Job, Project } from "@/lib/api-types";
+import { useI18n } from "@/lib/i18n";
 
 /** Estrae il numero di pagine totali dai result dei job di parse. */
 function pagesTotal(jobs: Job[]): number | null {
@@ -58,6 +52,9 @@ function pagesDone(jobs: Job[]): number | null {
 }
 
 function ProjectCard({ project }: { project: Project }) {
+  const { locale, t, dict } = useI18n();
+  const jobTypeLabels = dict.enums.jobType as Record<string, string>;
+  const jobStatusLabels = dict.enums.jobStatus as Record<string, string>;
   const jobsQuery = useQuery({
     queryKey: QUERY_KEY_JOBS(project.id),
     queryFn: () => listProjectJobs(project.id),
@@ -96,8 +93,10 @@ function ProjectCard({ project }: { project: Project }) {
           </Link>
           <p className="mt-0.5 text-xs text-slate-400">
             {project.source_language.toUpperCase()} →{" "}
-            {project.target_language.toUpperCase()} · aggiornato il{" "}
-            {formatDateTime(project.updated_at)}
+            {project.target_language.toUpperCase()} ·{" "}
+            {t("dash.updatedOn", {
+              date: formatDateTime(project.updated_at, locale),
+            })}
           </p>
         </div>
         <div className="text-right">
@@ -108,11 +107,11 @@ function ProjectCard({ project }: { project: Project }) {
 
       <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
         <div>
-          <dt className="text-slate-500">Job attivi</dt>
+          <dt className="text-slate-500">{t("dash.activeJobs")}</dt>
           <dd>{activeJobs.length}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Pagine</dt>
+          <dt className="text-slate-500">{t("dash.pages")}</dt>
           <dd>
             {done != null ? done : "—"}
             {total != null ? ` / ${total}` : ""}
@@ -127,7 +126,7 @@ function ProjectCard({ project }: { project: Project }) {
           aria-valuenow={Math.round(progress)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Progresso importazione ${project.title}`}
+          aria-label={t("dash.importProgress", { title: project.title })}
         >
           <div
             className="h-full rounded-full bg-indigo-500 transition-all"
@@ -140,8 +139,8 @@ function ProjectCard({ project }: { project: Project }) {
         <ul className="mt-3 space-y-1 text-xs text-slate-400">
           {activeJobs.slice(0, 3).map((job) => (
             <li key={String(job.id)}>
-              {JOB_TYPE_LABEL_IT[job.job_type] ?? job.job_type} ·{" "}
-              {JOB_STATUS_LABEL_IT[job.status] ?? job.status}
+              {jobTypeLabels[job.job_type] ?? job.job_type} ·{" "}
+              {jobStatusLabels[job.status] ?? job.status}
             </li>
           ))}
         </ul>
@@ -151,7 +150,7 @@ function ProjectCard({ project }: { project: Project }) {
         {confirming ? (
           <div className="flex items-center justify-end gap-2 text-xs">
             <span className="text-slate-400">
-              Eliminare «{project.title}» e tutti i suoi dati?
+              {t("dash.deleteConfirm", { title: project.title })}
             </span>
             <button
               type="button"
@@ -164,7 +163,7 @@ function ProjectCard({ project }: { project: Project }) {
               }}
               className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
             >
-              {deleting ? "Eliminazione…" : "Conferma"}
+              {deleting ? t("common.deleting") : t("common.confirm")}
             </button>
             <button
               type="button"
@@ -172,7 +171,7 @@ function ProjectCard({ project }: { project: Project }) {
               onClick={() => setConfirming(false)}
               className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
             >
-              Annulla
+              {t("common.cancel")}
             </button>
           </div>
         ) : (
@@ -180,9 +179,9 @@ function ProjectCard({ project }: { project: Project }) {
             type="button"
             onClick={() => setConfirming(true)}
             className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:border-red-600 hover:text-red-400"
-            aria-label={`Elimina progetto ${project.title}`}
+            aria-label={t("dash.deleteProject", { title: project.title })}
           >
-            Elimina
+            {t("common.delete")}
           </button>
         )}
       </div>
@@ -191,6 +190,7 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 function ModelsCard() {
+  const { t } = useI18n();
   const modelsQuery = useQuery({
     queryKey: QUERY_KEY_MODELS,
     queryFn: listGatewayModels,
@@ -203,16 +203,14 @@ function ModelsCard() {
   return (
     <section className="card" aria-labelledby="modelli-titolo">
       <h2 id="modelli-titolo" className="text-sm font-semibold text-white">
-        Modelli disponibili
+        {t("dash.modelsTitle")}
       </h2>
-      <p className="mt-0.5 text-xs text-slate-400">
-        Via LLM Gateway · solo endpoint locali
-      </p>
+      <p className="mt-0.5 text-xs text-slate-400">{t("dash.modelsSubtitle")}</p>
       {modelsQuery.isLoading ? (
-        <Loading label="Caricamento modelli..." />
+        <Loading label={t("dash.modelsLoading")} />
       ) : models.length === 0 ? (
         <p className="mt-3 text-xs text-slate-500">
-          Gateway non raggiungibile o nessun modello disponibile.
+          {t("dash.modelsUnavailable")}
         </p>
       ) : (
         <ul className="mt-3 space-y-1.5 text-xs">
@@ -228,7 +226,9 @@ function ModelsCard() {
                     : "bg-slate-700 text-slate-300"
                 }`}
               >
-                {model.status === "available" ? "attivo" : "inattivo"}
+                {model.status === "available"
+                  ? t("dash.modelActive")
+                  : t("dash.modelInactive")}
               </span>
             </li>
           ))}
@@ -239,6 +239,7 @@ function ModelsCard() {
 }
 
 export default function DashboardPage() {
+  const { t } = useI18n();
   const projectsQuery = useQuery({
     queryKey: QUERY_KEY_PROJECTS,
     queryFn: listProjects,
@@ -248,30 +249,28 @@ export default function DashboardPage() {
   const projects = projectsQuery.data ?? [];
 
   if (projectsQuery.isLoading) {
-    return <Loading label="Caricamento progetti…" />;
+    return <Loading label={t("dash.loadingProjects")} />;
   }
 
   if (projectsQuery.isError) {
-    return (
-      <ErrorNote message="Impossibile contattare il backend: assicurati che sia attivo su porta 8000." />
-    );
+    return <ErrorNote message={t("dash.backendDown")} />;
   }
 
   return (
     <div className="mx-auto max-w-6xl">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-white">{t("dash.title")}</h1>
           <p className="mt-1 text-sm text-slate-400">
             {projects.length === 0
-              ? "Nessun progetto: creane uno per iniziare."
+              ? t("dash.emptyHint")
               : projects.length === 1
-                ? "1 progetto"
-                : `${projects.length} progetti`}
+                ? t("dash.oneProject")
+                : t("dash.manyProjects", { n: projects.length })}
           </p>
         </div>
         <Link href="/progetti/nuovo" className="btn-primary">
-          Nuovo progetto
+          {t("dash.newProject")}
         </Link>
       </header>
 
@@ -280,14 +279,14 @@ export default function DashboardPage() {
           {projects.length === 0 ? (
             <div className="card text-center text-sm text-slate-400">
               <p>
-                Nessun progetto presente.{" "}
+                {t("dash.emptyBody")}{" "}
                 <Link
                   href="/progetti/nuovo"
                   className="text-indigo-300 underline"
                 >
-                  Crea il primo progetto
+                  {t("dash.emptyLink")}
                 </Link>{" "}
-                per iniziare.
+                {t("dash.emptyTail")}
               </p>
             </div>
           ) : (

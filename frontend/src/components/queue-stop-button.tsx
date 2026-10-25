@@ -9,17 +9,15 @@
 import { useState } from "react";
 
 import { stopQueue } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function QueueStopButton() {
+  const { t } = useI18n();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onStop() {
-    if (
-      !window.confirm(
-        "Annullare tutti i job in coda? I job in esecuzione finiranno il lavoro corrente."
-      )
-    ) {
+    if (!window.confirm(t("queueStop.confirm"))) {
       return;
     }
     setBusy(true);
@@ -27,11 +25,11 @@ export default function QueueStopButton() {
       const res = await stopQueue();
       setMsg(
         res.cancelled > 0
-          ? `Coda fermata: ${res.cancelled} job annullati`
-          : "Nessun job in coda"
+          ? t("queueStop.stoppedCount", { n: res.cancelled })
+          : t("queueStop.empty")
       );
     } catch {
-      setMsg("Errore durante l'arresto della coda");
+      setMsg(t("queueStop.error"));
     } finally {
       setBusy(false);
       setTimeout(() => setMsg(null), 5000);
@@ -44,10 +42,10 @@ export default function QueueStopButton() {
         type="button"
         onClick={onStop}
         disabled={busy}
-        title="Annulla tutti i job in coda (quelli in esecuzione finiscono)"
+        title={t("queueStop.title")}
         className="w-full rounded border border-red-400/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-200 hover:bg-red-500/25 disabled:opacity-40"
       >
-        {busy ? "Arresto…" : "⏹ Ferma coda job"}
+        {busy ? t("queueStop.stopping") : t("queueStop.button")}
       </button>
       {msg && <p className="mt-1 text-[11px] text-slate-400">{msg}</p>}
     </div>

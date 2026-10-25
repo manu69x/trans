@@ -29,9 +29,16 @@ import {
   type SegmentOverviewSeg,
   type VerifyReport,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function SegmentiPage() {
   const queryClient = useQueryClient();
+  const { locale, t } = useI18n();
+  const intlLocale = locale === "it" ? "it-IT" : "en-GB";
+  const nf = useMemo(
+    () => new Intl.NumberFormat(intlLocale),
+    [intlLocale]
+  );
   const [projectId, setProjectId] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sentencesPerSegment, setSentencesPerSegment] = useState(1);
@@ -83,16 +90,16 @@ export default function SegmentiPage() {
         });
         if (failed === 0) {
           show(
-            `Segmentazione completata (${mine.length} ${
-              mine.length === 1 ? "capitolo" : "capitoli"
-            })`,
+            mine.length === 1
+              ? t("segments.segDoneOne", { n: mine.length })
+              : t("segments.segDoneMany", { n: mine.length }),
             "ok"
           );
         } else {
           show(
-            `Segmentazione completata con ${failed} ${
-              failed === 1 ? "errore" : "errori"
-            } su ${mine.length} capitoli — apri i dettagli nei job`,
+            failed === 1
+              ? t("segments.segDoneErrOne", { failed, n: mine.length })
+              : t("segments.segDoneErrMany", { failed, n: mine.length }),
             "err"
           );
         }
@@ -136,44 +143,49 @@ export default function SegmentiPage() {
     onSuccess: (jobs) => {
       setPendingSegJobs(jobs);
       show(
-        `Segmentazione avviata (${jobs.length} capitoli, ${sentencesPerSegment} frase/i per segmento)`
+        t("segments.segStarted", {
+          n: jobs.length,
+          sps: sentencesPerSegment,
+        })
       );
       setSelected(new Set());
       queryClient.invalidateQueries({
         queryKey: ["segmenti-overview", projectId],
       });
     },
-    onError: (e: Error) => show(`Errore segmentazione: ${e.message}`, "err"),
+    onError: (e: Error) => show(t("segments.segError", { msg: e.message }), "err"),
   });
 
   const splitMutation = useMutation({
     mutationFn: ({ id, parts }: { id: string; parts: number }) =>
       splitSegment(projectId, id, parts),
     onSuccess: () => {
-      show("Segmento diviso: ordinali rinumerati", "ok");
+      show(t("segments.splitDone"), "ok");
       queryClient.invalidateQueries({
         queryKey: ["segmenti-overview", projectId],
       });
     },
-    onError: (e: Error) => show(`Errore split: ${e.message}`, "err"),
+    onError: (e: Error) => show(t("segments.splitError", { msg: e.message }), "err"),
   });
 
   const clearMutation = useMutation({
     mutationFn: (nodeIds: string[]) => clearSegmentation(projectId, nodeIds),
     onSuccess: (res) => {
       const skipped = (res.chapters_all_approved || []).length;
-      show(
-        `Segmentazione rimossa (${res.deleted} segmenti eliminati` +
-        (res.kept_approved ? `, ${res.kept_approved} approvati conservati` : "") +
-        (skipped ? `, ${skipped} capitoli saltati (solo approvati)` : "") + ")",
-        "ok"
-      );
+      let message = t("segments.clearDoneStart", { deleted: res.deleted });
+      if (res.kept_approved) {
+        message += t("segments.clearKept", { n: res.kept_approved });
+      }
+      if (skipped) {
+        message += t("segments.clearSkipped", { n: skipped });
+      }
+      show(message + ")", "ok");
       setSelected(new Set());
       queryClient.invalidateQueries({
         queryKey: ["segmenti-overview", projectId],
       });
     },
-    onError: (e: Error) => show(`Errore rimozione: ${e.message}`, "err"),
+    onError: (e: Error) => show(t("segments.clearError", { msg: e.message }), "err"),
   });
 
   // Verifica originale <-> segmenti: report carattere-per-carattere.
@@ -182,19 +194,20 @@ export default function SegmentiPage() {
     onSuccess: (report) => {
       setVerifyReport(report);
       if (report.ok) {
-        show("Verifica completata: piena corrispondenza", "ok");
+        show(t("segments.verifyOk"), "ok");
       } else {
         const n = report.summary.chapters_with_issues;
         const u = report.summary.uncovered_pages;
+        const extra = u ? t("segments.uncoveredExtra", { u }) : "";
         show(
-          `Verifica completata: ${n} ${
-            n === 1 ? "capitolo con problemi" : "capitoli con problemi"
-          }${u ? ` · ${u} pagine non coperte` : ""}`,
+          n === 1
+            ? t("segments.verifyIssuesOne", { n, extra })
+            : t("segments.verifyIssuesMany", { n, extra }),
           "err"
         );
       }
     },
-    onError: (e: Error) => show(`Errore verifica: ${e.message}`, "err"),
+    onError: (e: Error) => show(t("segments.verifyError", { msg: e.message }), "err"),
   });
 
   function switchProject(id: string) {
@@ -232,14 +245,16 @@ export default function SegmentiPage() {
     const projects = projectsQuery.data ?? [];
     return (
       <div className="mx-auto max-w-xl">
-        <h1 className="text-2xl font-bold text-white">Scegli il progetto</h1>
+        <h1 className="text-2xl font-bold text-white">{t("segments.pickProject")}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          La scheda Segmenti gestisce la segmentazione dei capitoli (§5.4).
+          {t("segments.pickProjectHint")}
         </p>
         {projectsQuery.isLoading ? (
-          <Loading label="Caricamento progetti…" />
+          <Loading label={t("projects.loading")} />
         ) : projects.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">Nessun progetto.</p>
+          <p className="mt-4 text-sm text-slate-400">
+            {t("segments.noProjectsShort")}
+          </p>
         ) : (
           <ul className="mt-4 space-y-2">
             {projects.map((p) => (
@@ -261,7 +276,7 @@ export default function SegmentiPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Segmenti</h1>
+        <h1 className="text-2xl font-bold text-white">{t("segments.title")}</h1>
         <select
           value={projectId}
           onChange={(e) => switchProject(e.target.value)}
@@ -282,26 +297,27 @@ export default function SegmentiPage() {
       {/* Token massimi del traduttore — ben evidente */}
       <div className="mt-3 rounded-md border border-indigo-800/60 bg-indigo-950/40 px-4 py-3">
         <p className="text-sm text-indigo-100">
-          <span className="font-bold">Token massimi traduttore: {maxTokens.toLocaleString("it-IT")}</span>{" "}
-          · disponibili per il testo da tradizzare:{" "}
-          <span className="font-semibold">{usableTokens.toLocaleString("it-IT")}</span>{" "}
-          (riserva contesto {overviewQuery.data?.context_reserve_tokens ?? "—"} +{" "}
-          output {overviewQuery.data?.output_reserve_tokens ?? "—"})
+          <span className="font-bold">
+            {t("segments.maxTokensLabel", { max: nf.format(maxTokens) })}
+          </span>{" "}
+          · {t("segments.usableLabel")}{" "}
+          <span className="font-semibold">{nf.format(usableTokens)}</span>{" "}
+          {t("segments.reserveInfo", {
+            ctx: overviewQuery.data?.context_reserve_tokens ?? "—",
+            out: overviewQuery.data?.output_reserve_tokens ?? "—",
+          })}
         </p>
-        <p className="mt-1 text-xs text-indigo-300/80">
-          Verde = capitolo/segmento entro il limite · Rosso = sfora, serve
-          risegmentazione
-        </p>
+        <p className="mt-1 text-xs text-indigo-300/80">{t("segments.legend")}</p>
       </div>
 
       {overviewQuery.isLoading ? (
-        <Loading label="Caricamento segmenti…" />
+        <Loading label={t("segments.loading")} />
       ) : overviewQuery.isError ? (
         <ErrorNote
           message={
             overviewQuery.error instanceof ApiError
-              ? `Errore API: ${overviewQuery.error.detail}`
-              : "Impossibile caricare l'overview dei segmenti."
+              ? t("segments.apiError", { detail: overviewQuery.error.detail })
+              : t("segments.loadError")
           }
         />
       ) : (
@@ -317,10 +333,10 @@ export default function SegmentiPage() {
                 }
                 onChange={toggleAll}
               />
-              Seleziona tutti
+              {t("segments.selectAll")}
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-400">
-              Frasi per segmento:
+              {t("segments.sentencesPerSegment")}
               <input
                 type="number"
                 min={1}
@@ -341,20 +357,24 @@ export default function SegmentiPage() {
                 }}
                 className="w-20 rounded bg-slate-800 px-2 py-1 text-sm text-white"
               />
-              <span className="text-xs text-slate-500">(default 1)</span>
+              <span className="text-xs text-slate-500">
+                {t("segments.defaultHint")}
+              </span>
             </label>
             <button
               onClick={() => segmentMutation.mutate([...selected])}
               disabled={!anySelected || segmentMutation.isPending}
               className="rounded bg-indigo-500/25 px-3 py-1.5 text-sm text-indigo-200 hover:bg-indigo-500/35 disabled:opacity-40"
             >
-              {segmentMutation.isPending ? "Avvio…" : "⚙ Segmenta"}
+              {segmentMutation.isPending
+                ? t("segments.segmentStart")
+                : t("segments.segmentBtn")}
             </button>
             <button
               onClick={() => {
                 if (
                   window.confirm(
-                    `Rimuovere la segmentazione di ${selected.size} capitoli/parti? Le bozze non approvate di quei capitoli verranno eliminate.`
+                    t("segments.clearConfirm", { n: selected.size })
                   )
                 ) {
                   clearMutation.mutate([...selected]);
@@ -363,29 +383,33 @@ export default function SegmentiPage() {
               disabled={!anySelected || clearMutation.isPending}
               className="rounded bg-red-500/20 px-3 py-1.5 text-sm text-red-200 hover:bg-red-500/30 disabled:opacity-40"
             >
-              {clearMutation.isPending ? "Rimozione…" : "🗑 Rimuovi segmentazione"}
+              {clearMutation.isPending
+                ? t("segments.clearing")
+                : t("segments.clearBtn")}
             </button>
             <button
               onClick={() => verifyMutation.mutate()}
               disabled={verifyMutation.isPending}
-              title="Confronta carattere per carattere il testo originale del libro con la sequenza dei segmenti"
+              title={t("segments.verifyTitle")}
               className="rounded bg-emerald-500/20 px-3 py-1.5 text-sm text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-40"
             >
               {verifyMutation.isPending
-                ? "Verifica in corso…"
-                : "✓ Verifica corrispondenza"}
+                ? t("segments.verifying")
+                : t("segments.verifyBtn")}
             </button>
             <span className="ml-auto text-xs text-slate-500">
-              {totals.segs} segmenti · {totals.toks.toLocaleString("it-IT")}{" "}
-              token totali · {totals.over} capitoli oltre il limite
+              {t("segments.totals", {
+                segs: totals.segs,
+                toks: nf.format(totals.toks),
+                over: totals.over,
+              })}
             </span>
           </div>
 
           {verifyMutation.isPending && (
             <div className="mt-4 rounded-md border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
               <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-              Verifica in corso: confronto carattere per carattere fra testo
-              originale e segmenti…
+              {t("segments.verifyPending")}
             </div>
           )}
 
@@ -396,11 +420,11 @@ export default function SegmentiPage() {
           {/* Elenco capitoli/parti — tutti, con token stimati subito */}
           {chapters.length === 0 ? (
             <p className="mt-6 text-sm text-slate-400">
-              Nessun capitolo/part nella struttura.{" "}
+              {t("segments.noChaptersBody")}{" "}
               <Link href="/import" className="text-indigo-300 underline">
-                Importa un documento
+                {t("segments.noChaptersLink")}
               </Link>{" "}
-              e rileva la struttura prima.
+              {t("segments.noChaptersTail")}
             </p>
           ) : (
             <ul className="mt-4 space-y-2">
@@ -437,8 +461,9 @@ export default function SegmentiPage() {
       {pendingSegJobs.length > 0 && (
         <div className="fixed bottom-4 left-1/2 z-10 -translate-x-1/2 rounded bg-slate-800/95 px-4 py-2 text-sm text-slate-200 shadow-lg ring-1 ring-slate-700">
           <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-          Segmentazione in corso… ({pendingSegJobs.length}{" "}
-          {pendingSegJobs.length === 1 ? "capitolo" : "capitoli"})
+          {pendingSegJobs.length === 1
+            ? t("segments.segRunningOne", { n: pendingSegJobs.length })
+            : t("segments.segRunningMany", { n: pendingSegJobs.length })}
         </div>
       )}
       {toast && (
@@ -479,6 +504,8 @@ function ChapterRow({
   onSplit: (segmentId: string, parts: number) => void;
   splitPending: boolean;
 }) {
+  const { locale, t } = useI18n();
+  const intlLocale = locale === "it" ? "it-IT" : "en-GB";
   const hasTokens = c.total_tokens > 0 || c.segment_count > 0;
   const green = hasTokens && !c.over_limit;
   const red = hasTokens && c.over_limit;
@@ -495,16 +522,22 @@ function ChapterRow({
         <button
           onClick={onExpand}
           className="flex-1 text-left"
-          title="Mostra i segmenti del capitolo"
+          title={t("segments.showSegments")}
         >
           <span className="font-medium text-white">{c.title}</span>
           <span className="ml-2 text-xs text-slate-500">
-            ({c.kind === "chapter" ? "capitolo" : c.kind === "part" ? "parte" : "preliminari"})
+            ({c.kind === "chapter"
+              ? t("segments.kindChapter")
+              : c.kind === "part"
+                ? t("segments.kindPart")
+                : t("segments.kindOther")})
           </span>
           {c.paragraph_count != null && (
             <span className="ml-3 text-xs text-slate-400">
               {c.paragraph_count}{" "}
-              {c.paragraph_count === 1 ? "paragrafo" : "paragrafi"}
+              {c.paragraph_count === 1
+                ? t("segments.paragraphOne")
+                : t("segments.paragraphMany")}
             </span>
           )}
           <span
@@ -516,15 +549,19 @@ function ChapterRow({
                 : "bg-slate-700/50 text-slate-400"
             }`}
           >
-            ~{c.total_tokens.toLocaleString("it-IT")} token
-            {red ? " — SFORA" : green ? " — OK" : ""}
+            {t("segments.tokensCount", {
+              n: c.total_tokens.toLocaleString(intlLocale),
+            })}
+            {red ? t("segments.overFlag") : green ? t("segments.okFlag") : ""}
           </span>
           {noSegments && c.total_tokens > 0 && (
-            <span className="ml-2 text-xs text-slate-500">(stima)</span>
+            <span className="ml-2 text-xs text-slate-500">
+              {t("segments.estimate")}
+            </span>
           )}
         </button>
         <span className="text-xs text-slate-500">
-          {c.segment_count} segmenti
+          {t("segments.segmentCount", { n: c.segment_count })}
         </span>
         <span
           className={`h-3 w-3 rounded-full ${
@@ -532,10 +569,10 @@ function ChapterRow({
           }`}
           title={
             green
-              ? "Entro il limite di token"
+              ? t("segments.dotGreen")
               : red
-              ? "Oltre il limite: risegmentare"
-              : "Nessun testo nel capitolo"
+                ? t("segments.dotRed")
+                : t("segments.dotGray")
           }
         />
         <button
@@ -543,13 +580,15 @@ function ChapterRow({
           disabled={splitPending}
           className="rounded bg-indigo-500/25 px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-500/35"
         >
-          Segmenta
+          {t("segments.segmentOne")}
         </button>
       </div>
       {expanded && c.segments.length > 0 && (
         <div className="mt-3 border-t border-slate-800 pt-2">
           <p className="mb-1 text-xs text-slate-500">
-            Limite per segmento: {usableTokens.toLocaleString("it-IT")} token
+            {t("segments.limitPerSegment", {
+              n: usableTokens.toLocaleString(intlLocale),
+            })}
           </p>
           <ul className="max-h-72 space-y-1 overflow-y-auto">
             {c.segments.map((s) => (
@@ -559,9 +598,7 @@ function ChapterRow({
         </div>
       )}
       {expanded && c.segments.length === 0 && (
-        <p className="mt-2 text-xs text-slate-500">
-          Nessun segmento: esegui la segmentazione.
-        </p>
+        <p className="mt-2 text-xs text-slate-500">{t("segments.noSegmentsHint")}</p>
       )}
     </li>
   );
@@ -578,6 +615,7 @@ function SegmentRow({
   onSplit: (segmentId: string, parts: number) => void;
   splitPending: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <li
       className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${
@@ -588,7 +626,7 @@ function SegmentRow({
       {s.numero != null && (
         <span
           className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-300"
-          title="Numero progressivo unico del segmento"
+          title={t("segments.numeroTitle")}
         >
           N° {s.numero}
         </span>
@@ -608,7 +646,7 @@ function SegmentRow({
             min={2}
             max={10}
             defaultValue={2}
-            title="In quante parti dividere"
+            title={t("segments.splitPartsTitle")}
             className="w-14 rounded bg-slate-800 px-1 py-0.5 text-white"
             id={`split-parts-${s.segment_id}`}
           />
@@ -623,27 +661,13 @@ function SegmentRow({
             disabled={splitPending}
             className="rounded bg-amber-500/25 px-2 py-0.5 text-amber-200 hover:bg-amber-500/35 disabled:opacity-40"
           >
-            ✂ Risegmenta
+            {t("segments.resegmentBtn")}
           </button>
         </>
       )}
     </li>
   );
 }
-
-const ISSUE_LABEL_IT: Record<string, string> = {
-  testo_non_corrispondente: "Testo non corrispondente",
-  senza_segmenti: "Capitolo non segmentato",
-  senza_testo: "Testo originale mancante",
-  senza_range_pagine: "Intervallo di pagine non assegnato",
-  ordinali_non_sequenziali: "Sequenza segmenti interrotta",
-};
-
-const DIFF_LABEL_IT: Record<string, string> = {
-  mancante_nei_segmenti: "testo presente nell'originale, assente nei segmenti",
-  aggiunto_nei_segmenti: "testo nei segmenti, assente nell'originale",
-  diverso: "testo diverso",
-};
 
 /** Formatta un delta con il segno (+12 / -3 / 0). */
 function fmtSigned(n: number): string {
@@ -657,6 +681,10 @@ function VerifyReportPanel({
   report: VerifyReport;
   onClose: () => void;
 }) {
+  const { locale, t, dict } = useI18n();
+  const intlLocale = locale === "it" ? "it-IT" : "en-GB";
+  const issueLabels = dict.enums.verifyIssue as Record<string, string>;
+  const diffLabels = dict.enums.verifyDiff as Record<string, string>;
   const s = report.summary;
   const badChapters = report.chapters.filter((c) => !c.ok);
   const warnChapters = report.chapters.filter(
@@ -675,34 +703,49 @@ function VerifyReportPanel({
               : "bg-red-500/25 text-red-200"
           }`}
         >
-          {report.ok
-            ? "✓ PIENA CORRISPONDENZA"
-            : `✗ ${s.chapters_with_issues + (s.uncovered_pages > 0 ? 1 : 0)} ${
+          {report.ok ? (
+            t("segments.fullMatch")
+          ) : (
+            <>
+              {`✗ ${
+                s.chapters_with_issues + (s.uncovered_pages > 0 ? 1 : 0)
+              } ${
                 s.chapters_with_issues + (s.uncovered_pages > 0 ? 1 : 0) === 1
-                  ? "problema rilevato"
-                  : "problemi rilevati"
+                  ? t("segments.problemsOne")
+                  : t("segments.problemsMany")
               }`}
+            </>
+          )}
         </span>
         <span className="text-xs text-slate-400">
-          {new Date(report.generated_at).toLocaleString("it-IT")}
+          {new Date(report.generated_at).toLocaleString(intlLocale)}
         </span>
         <button
           onClick={onClose}
           className="ml-auto rounded bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700"
         >
-          Chiudi
+          {t("segments.close")}
         </button>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-        <Stat label="Capitoli" value={`${s.chapters_ok}/${s.chapters} ok`} />
-        <Stat label="Segmenti" value={s.segments_total.toLocaleString("it-IT")} />
         <Stat
-          label="Caratteri originale"
-          value={s.original_chars.toLocaleString("it-IT")}
+          label={t("segments.statChapters")}
+          value={t("segments.statChaptersValue", {
+            ok: s.chapters_ok,
+            total: s.chapters,
+          })}
         />
         <Stat
-          label="Δ caratteri"
+          label={t("segments.statSegments")}
+          value={s.segments_total.toLocaleString(intlLocale)}
+        />
+        <Stat
+          label={t("segments.statOriginalChars")}
+          value={s.original_chars.toLocaleString(intlLocale)}
+        />
+        <Stat
+          label={t("segments.statCharDelta")}
           value={fmtSigned(s.char_delta)}
           tone={s.char_delta === 0 ? "ok" : "warn"}
         />
@@ -711,9 +754,9 @@ function VerifyReportPanel({
       {warnChapters.length > 0 && (
         <div className="mt-3 rounded border border-amber-900/60 bg-amber-950/30 px-3 py-2">
           <p className="text-xs font-semibold text-amber-200">
-            {warnChapters.length}{" "}
-            {warnChapters.length === 1 ? "capitolo" : "capitoli"} con testo
-            integro ma spaziatura diversa dalla ricucitura delle frasi
+            {warnChapters.length === 1
+              ? t("segments.warnChaptersOne", { n: warnChapters.length })
+              : t("segments.warnChaptersMany", { n: warnChapters.length })}
           </p>
           <ul className="mt-1 space-y-1">
             {warnChapters.map((c) => (
@@ -730,8 +773,7 @@ function VerifyReportPanel({
 
       {report.ok ? (
         <p className="mt-3 text-sm text-emerald-300">
-          La sequenza dei segmenti reproduce esattamente il testo originale del
-          libro, carattere per carattere, per tutti i {s.chapters} capitoli.
+          {t("segments.allOk", { n: s.chapters })}
         </p>
       ) : (
         <>
@@ -746,15 +788,20 @@ function VerifyReportPanel({
                     <span className="font-medium text-white">{c.title}</span>
                     <span className="text-xs text-slate-400">
                       {c.start_page != null && c.end_page != null
-                        ? `pagine ${c.start_page}–${c.end_page}`
-                        : "nessun intervallo pagine"}
+                        ? t("segments.pagesRange", {
+                            start: c.start_page,
+                            end: c.end_page,
+                          })
+                        : t("segments.noPagesRange")}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {c.segment_count} segmenti
+                      {t("segments.segmentCount", { n: c.segment_count })}
                     </span>
                     <span className="text-xs text-slate-400">
-                      orig {c.original_chars.toLocaleString("it-IT")} · seg{" "}
-                      {c.segment_chars.toLocaleString("it-IT")} ·{" "}
+                      {t("segments.origSegChars", {
+                        orig: c.original_chars.toLocaleString(intlLocale),
+                        seg: c.segment_chars.toLocaleString(intlLocale),
+                      })}
                       <span
                         className={
                           c.char_delta === 0
@@ -770,7 +817,7 @@ function VerifyReportPanel({
                     {c.issues.map((iss, i) => (
                       <li key={i} className="text-xs">
                         <span className="rounded bg-red-500/20 px-1.5 py-0.5 font-semibold text-red-200">
-                          {ISSUE_LABEL_IT[iss.type] ?? iss.type}
+                          {issueLabels[iss.type] ?? iss.type}
                         </span>{" "}
                         <span className="text-slate-300">{iss.detail}</span>
                         {iss.regions && iss.regions.length > 0 && (
@@ -778,18 +825,25 @@ function VerifyReportPanel({
                             {iss.regions.map((r, j) => (
                               <li key={j} className="text-[11px] text-slate-400">
                                 <span className="text-amber-300">
-                                  {DIFF_LABEL_IT[r.type] ?? r.type}
+                                  {diffLabels[r.type] ?? r.type}
                                 </span>{" "}
-                                a pos. {r.position.toLocaleString("it-IT")} (
-                                {r.original_len} → {r.segment_len} car.)
+                                {t("segments.regionAt", {
+                                  pos: r.position.toLocaleString(intlLocale),
+                                  from: r.original_len,
+                                  to: r.segment_len,
+                                })}
                                 {r.original_snippet && (
                                   <div className="mt-0.5 rounded bg-slate-950/60 px-2 py-1 font-mono text-[11px] text-red-300">
-                                    originale: {r.original_snippet}
+                                    {t("segments.originalSnippet", {
+                                      text: r.original_snippet,
+                                    })}
                                   </div>
                                 )}
                                 {r.segment_snippet && (
                                   <div className="rounded bg-slate-950/60 px-2 py-1 font-mono text-[11px] text-emerald-300">
-                                    segmenti: {r.segment_snippet}
+                                    {t("segments.segmentSnippet", {
+                                      text: r.segment_snippet,
+                                    })}
                                   </div>
                                 )}
                               </li>
@@ -807,17 +861,28 @@ function VerifyReportPanel({
           {report.uncovered_pages.length > 0 && (
             <div className="mt-3 rounded border border-amber-900/60 bg-amber-950/30 px-3 py-2">
               <p className="text-xs font-semibold text-amber-200">
-                {report.uncovered_pages.length}{" "}
-                {report.uncovered_pages.length === 1 ? "pagina" : "pagine"} del
-                libro non coperte da nessun capitolo (
-                {report.summary.uncovered_chars.toLocaleString("it-IT")}{" "}
-                caratteri di testo mai segmentati)
+                {report.uncovered_pages.length === 1
+                  ? t("segments.uncoveredOne", {
+                      n: report.uncovered_pages.length,
+                      chars: report.summary.uncovered_chars.toLocaleString(
+                        intlLocale
+                      ),
+                    })
+                  : t("segments.uncoveredMany", {
+                      n: report.uncovered_pages.length,
+                      chars: report.summary.uncovered_chars.toLocaleString(
+                        intlLocale
+                      ),
+                    })}
               </p>
               <ul className="mt-1 max-h-40 space-y-1 overflow-y-auto">
                 {report.uncovered_pages.map((p) => (
                   <li key={p.page} className="text-[11px] text-slate-400">
-                    <span className="text-amber-300">pag. {p.page}</span> ·{" "}
-                    {p.chars} car. · <span className="font-mono">{p.preview}</span>
+                    <span className="text-amber-300">
+                      {t("segments.pageAbbr", { page: p.page })}
+                    </span>{" "}
+                    · {t("segments.charsAbbr", { n: p.chars })} ·{" "}
+                    <span className="font-mono">{p.preview}</span>
                   </li>
                 ))}
               </ul>
@@ -826,8 +891,9 @@ function VerifyReportPanel({
 
           {okChapters.length > 0 && (
             <p className="mt-3 text-xs text-slate-500">
-              {okChapters.length} {okChapters.length === 1 ? "capitolo" : "capitoli"}{" "}
-              verificati senza differenze.
+              {okChapters.length === 1
+                ? t("segments.verifiedCleanOne", { n: okChapters.length })
+                : t("segments.verifiedCleanMany", { n: okChapters.length })}
             </p>
           )}
         </>

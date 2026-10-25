@@ -28,12 +28,13 @@ import {
   type ExportPlanResponse,
 } from "@/lib/api";
 import { QUERY_KEY_PROJECTS } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
-const FORMAT_OPTS: [ExportOptions["format"], string, string][] = [
-  ["docx", "DOCX", "editoriale: capitoli, corsivi, watermark"],
-  ["epub", "EPUB", "libro XHTML con toc"],
-  ["pdf", "PDF", "libro pronto per la stampa (A5)"],
-  ["html", "HTML", "singolo documento, preview"],
+const FORMAT_OPTS: [ExportOptions["format"], string][] = [
+  ["docx", "DOCX"],
+  ["epub", "EPUB"],
+  ["pdf", "PDF"],
+  ["html", "HTML"],
 ];
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -47,6 +48,13 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function ExportPage() {
   const queryClient = useQueryClient();
+  const { locale, t } = useI18n();
+  const hints: Record<string, string> = {
+    docx: t("exportPage.formats.docx"),
+    epub: t("exportPage.formats.epub"),
+    pdf: t("exportPage.formats.pdf"),
+    html: t("exportPage.formats.html"),
+  };
 
   const projectsQuery = useQuery({
     queryKey: [QUERY_KEY_PROJECTS],
@@ -109,9 +117,10 @@ export default function ExportPage() {
     onSuccess: ({ blob, filename, snapshotId }) => {
       downloadBlob(blob, filename);
       setNotice(
-        `File ${format.toUpperCase()} scaricato.${
-          snapshotId ? ` Snapshot export ${snapshotId.slice(0, 8)}… registrato.` : ""
-        }`
+        t("exportPage.downloaded", { format: format.toUpperCase() }) +
+          (snapshotId
+            ? t("exportPage.snapshotRegistered", { id: snapshotId.slice(0, 8) })
+            : "")
       );
       setError(null);
       queryClient.invalidateQueries({
@@ -122,9 +131,7 @@ export default function ExportPage() {
       });
     },
     onError: (e: Error) => {
-      setError(
-        e.message || "Export non riuscito."
-      );
+      setError(e.message || t("exportPage.exportFailed"));
     },
   });
 
@@ -137,11 +144,11 @@ export default function ExportPage() {
   if (!projectId) {
     return (
       <div className="space-y-3">
-        <h1 className="text-xl font-semibold">Export</h1>
+        <h1 className="text-xl font-semibold">{t("exportPage.title")}</h1>
         {projectsQuery.isLoading ? (
-          <Loading label="Caricamento progetti…" />
+          <Loading label={t("projects.loading")} />
         ) : (
-          <ErrorNote message="Nessun progetto disponibile." />
+          <ErrorNote message={t("preview.noProjects")} />
         )}
       </div>
     );
@@ -162,7 +169,7 @@ export default function ExportPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">Export</h1>
+        <h1 className="text-xl font-semibold">{t("exportPage.title")}</h1>
         <select
           value={projectId}
           onChange={(e) => {
@@ -171,7 +178,7 @@ export default function ExportPage() {
             setError(null);
           }}
           className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white"
-          aria-label="Progetto"
+          aria-label={t("importPage.project")}
         >
           {projectsQuery.data?.map((p) => (
             <option key={p.id} value={p.id}>
@@ -198,14 +205,12 @@ export default function ExportPage() {
         {/* SINISTRA: opzioni (§11.1) */}
         <div className="rounded-md border border-slate-800 bg-slate-900/40 p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Opzioni
+            {t("exportPage.optionsTitle")}
           </h2>
 
           <div className="mt-3 space-y-2">
-            <p className="text-xs text-slate-500">
-              Formato di destinazione (§19.2: DOCX editoriale prioritario).
-            </p>
-            {FORMAT_OPTS.map(([value, label, hint]) => (
+            <p className="text-xs text-slate-500">{t("exportPage.formatHint")}</p>
+            {FORMAT_OPTS.map(([value, label]) => (
               <label
                 key={value}
                 className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 ${
@@ -224,7 +229,9 @@ export default function ExportPage() {
                 <span className="text-sm font-medium text-slate-100">
                   {label}
                 </span>
-                <span className="ml-auto text-xs text-slate-500">{hint}</span>
+                <span className="ml-auto text-xs text-slate-500">
+                  {hints[value]}
+                </span>
               </label>
             ))}
           </div>
@@ -238,10 +245,9 @@ export default function ExportPage() {
                 className="mt-0.5 accent-indigo-500"
               />
               <span>
-                Includi le bozze (machine_draft)
+                {t("exportPage.includeDraftsLabel")}
                 <span className="mt-0.5 block text-xs text-slate-500">
-                  Senza questa opzione l&apos;export contiene solo i segmenti
-                  approvati (§15.4).
+                  {t("exportPage.includeDraftsHint")}
                 </span>
               </span>
             </label>
@@ -259,11 +265,11 @@ export default function ExportPage() {
                 className="mt-0.5 accent-amber-500"
               />
               <span>
-                Watermark <code className="text-xs">[BOZZA]</code> sulle bozze
+                {t("exportPage.watermarkLabel")}
                 <span className="mt-0.5 block text-xs text-slate-500">
                   {willWatermark
-                    ? "Obbligatorio: stai spedendo bozze (§15.4 / §13.1)."
-                    : "Opzionale; forzato quando ci sono bozze nell'export."}
+                    ? t("exportPage.watermarkRequired")
+                    : t("exportPage.watermarkOptional")}
                 </span>
               </span>
             </label>
@@ -281,10 +287,9 @@ export default function ExportPage() {
                   className="mt-0.5 accent-indigo-500"
                 />
                 <span>
-                  Numerazione pagine nel PDF
+                  {t("exportPage.pageNumbersLabel")}
                   <span className="mt-0.5 block text-xs text-slate-500">
-                    Piedipagina con titolo del libro e numero di pagina
-                    (disattiva per pagine senza footer).
+                    {t("exportPage.pageNumbersHint")}
                   </span>
                 </span>
               </label>
@@ -302,19 +307,16 @@ export default function ExportPage() {
                 className="mt-0.5 accent-indigo-500"
               />
               <span>
-                Con clone struttura
+                {t("exportPage.cloneLabel")}
                 <span className="mt-0.5 block text-xs text-slate-500">
-                  Ricostruisce l&apos;aspetto del libro originale: dimensioni
-                  immagine del libro, altre immagini dell'originale nelle
-                  posizioni dei capitoli e rapporto pagine tradotte/pagine
-                  originali (richiede il rileva struttura; PDF ed EPUB).
+                  {t("exportPage.cloneHint")}
                 </span>
               </span>
             </label>
 
             {cloneStructure && format === "pdf" && (
               <label className="flex items-center gap-2 text-sm text-slate-400">
-                Rapporto pagine (tradotte : originali):
+                {t("exportPage.pageRatioLabel")}
                 <input
                   type="number"
                   min={0.5}
@@ -325,7 +327,7 @@ export default function ExportPage() {
                   className="w-20 rounded bg-slate-800 px-2 py-1 text-white"
                 />
                 <span className="text-xs text-slate-500">
-                  1.0 = mirrored 1:1 quando possibile
+                  {t("exportPage.pageRatioHint")}
                 </span>
               </label>
             )}
@@ -337,12 +339,12 @@ export default function ExportPage() {
             className="mt-4 w-full rounded-md bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {exportMutation.isPending
-              ? "Generazione…"
-              : `Genera e scarica ${format.toUpperCase()}`}
+              ? t("exportPage.generating")
+              : t("exportPage.generate", { format: format.toUpperCase() })}
           </button>
           {exportBlocked && !exportMutation.isPending && (
             <p className="mt-2 text-xs text-slate-500">
-              Download disattivato: vedi la preview a destra per il motivo.
+              {t("exportPage.blocked")}
             </p>
           )}
         </div>
@@ -350,15 +352,15 @@ export default function ExportPage() {
         {/* CENTRO: preview conteggio + manifest (§15.4) */}
         <div className="rounded-md border border-slate-800 bg-slate-900/40 p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Preview conteggio
+            {t("exportPage.previewTitle")}
           </h2>
 
-          {planQuery.isLoading && <Loading label="Calcolo del piano…" />}
+          {planQuery.isLoading && <Loading label={t("exportPage.planLoading")} />}
           {planQuery.isError && (
             <ErrorNote
               message={
                 (planQuery.error as Error)?.message ||
-                "Impossibile calcolare il piano."
+                t("exportPage.planError")
               }
             />
           )}
@@ -369,50 +371,54 @@ export default function ExportPage() {
                   <div className="text-lg font-semibold text-slate-100">
                     {counts?.total_segments ?? 0}
                   </div>
-                  <div className="text-xs text-slate-500">Totale</div>
+                  <div className="text-xs text-slate-500">
+                    {t("exportPage.total")}
+                  </div>
                 </div>
                 <div className="rounded-md bg-emerald-500/10 py-2">
                   <div className="text-lg font-semibold text-emerald-300">
                     {counts?.approved ?? 0}
                   </div>
-                  <div className="text-xs text-slate-500">Approvati</div>
+                  <div className="text-xs text-slate-500">
+                    {t("exportPage.approvedCount")}
+                  </div>
                 </div>
                 <div className="rounded-md bg-amber-500/10 py-2">
                   <div className="text-lg font-semibold text-amber-300">
                     {counts?.drafts ?? 0}
                   </div>
-                  <div className="text-xs text-slate-500">Bozze</div>
+                  <div className="text-xs text-slate-500">
+                    {t("exportPage.draftsCount")}
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Segmenti da spedire</span>
+                  <span className="text-slate-500">{t("exportPage.toSend")}</span>
                   <span className="font-medium text-slate-100">
                     {plan.selected_segments}
                   </span>
                 </div>
                 <div className="mt-1 flex justify-between">
-                  <span className="text-slate-500">
-                    Scelta
-                  </span>
+                  <span className="text-slate-500">{t("exportPage.choice")}</span>
                   <span className="text-slate-300">
                     {plan.include_drafts
-                      ? "approvati + bozze"
-                      : "solo approvati"}
-                    {plan.watermark ? " · watermark" : ""}
+                      ? t("exportPage.choiceBoth")
+                      : t("exportPage.choiceApproved")}
+                    {plan.watermark ? t("exportPage.watermarkMark") : ""}
                   </span>
                 </div>
               </div>
 
               {willWatermark && !watermark && (
-                <ErrorNote message="Le bozze richiedono il watermark esplicito: attivalo a sinistra (§15.4)." />
+                <ErrorNote message={t("exportPage.watermarkNeeded")} />
               )}
 
               {plan.chapters.length > 0 && (
                 <div>
                   <p className="text-xs text-slate-500">
-                    Capitoli ({plan.chapters.length})
+                    {t("exportPage.chapters", { n: plan.chapters.length })}
                   </p>
                   <ul className="mt-1 grid grid-cols-1 gap-1 text-sm text-slate-300">
                     {plan.chapters.map((c, i) => (
@@ -436,25 +442,28 @@ export default function ExportPage() {
             {plan?.manifest ? (
               <dl className="mt-3 space-y-1.5 text-sm">
                 {[
-                  ["Versione progetto", plan.manifest.version],
-                  ["Generato (preview)", plan.manifest.generated_at],
-                  ["Sorgente → target", `${plan.manifest.source_language} → ${plan.manifest.target_language}`],
-                  ["Profilo", plan.manifest.genre_profile],
-                  ["Stato progetto", plan.manifest.project_status],
+                  [t("exportPage.manifest.version"), plan.manifest.version],
+                  [t("exportPage.manifest.generated"), plan.manifest.generated_at],
                   [
-                    "Modelli",
+                    t("exportPage.manifest.languages"),
+                    `${plan.manifest.source_language} → ${plan.manifest.target_language}`,
+                  ],
+                  [t("exportPage.manifest.profile"), plan.manifest.genre_profile],
+                  [t("exportPage.manifest.status"), plan.manifest.project_status],
+                  [
+                    t("exportPage.manifest.models"),
                     plan.manifest.models.length
                       ? plan.manifest.models.join(", ")
-                      : "— (non impostati)",
+                      : t("exportPage.manifest.modelsUnset"),
                   ],
                   [
-                    "Snapshot glossario",
+                    t("exportPage.manifest.glossary"),
                     plan.manifest.glossary_snapshot_id
                       ? plan.manifest.glossary_snapshot_id.slice(0, 8) + "…"
                       : "—",
                   ],
                   [
-                    "Snapshot TM",
+                    t("exportPage.manifest.tm"),
                     plan.manifest.tm_snapshot_id
                       ? plan.manifest.tm_snapshot_id.slice(0, 8) + "…"
                       : "—",
@@ -473,23 +482,23 @@ export default function ExportPage() {
               </dl>
             ) : (
               <p className="mt-3 text-xs text-slate-500">
-                Il manifest appare quando il piano è disponibile.
+                {t("exportPage.manifestPending")}
               </p>
             )}
           </div>
 
           <div className="rounded-md border border-slate-800 bg-slate-900/40 p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Storico export
+              {t("exportPage.historyTitle")}
             </h2>
             {snapshotsQuery.isLoading && (
-              <Loading label="Caricamento…" />
+              <Loading label={t("common.loading")} />
             )}
             {!snapshotsQuery.isLoading &&
               (!snapshotsQuery.data ||
                 snapshotsQuery.data.snapshots.length === 0) && (
                 <p className="mt-3 text-xs text-slate-500">
-                  Nessun export generato per questo progetto.
+                  {t("exportPage.historyEmpty")}
                 </p>
               )}
             <ul className="mt-3 space-y-2">
@@ -500,11 +509,12 @@ export default function ExportPage() {
                 >
                   <span className="font-medium text-slate-200">
                     {(s.format ?? "?").toUpperCase()}
-                    {s.include_drafts ? " +bozze" : ""}
-                    {s.watermark ? " · [BOZZA]" : ""}
+                    {s.include_drafts ? ` ${t("exportPage.withDrafts")}` : ""}
+                    {s.watermark ? t("exportPage.draftMark") : ""}
                   </span>
                   <span className="text-xs text-slate-500">
-                    {s.item_count} seg. · {formatDateTime(s.created_at)}
+                    {t("exportPage.itemsCount", { n: s.item_count })} ·{" "}
+                    {formatDateTime(s.created_at, locale)}
                   </span>
                 </li>
               ))}

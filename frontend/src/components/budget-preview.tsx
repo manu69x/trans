@@ -19,6 +19,7 @@ import {
   type BudgetCheck,
 } from "@/lib/model-budget";
 import type { PlanBlock, GatewayModel, PlanResponse } from "@/lib/api-types";
+import { useI18n } from "@/lib/i18n";
 
 function StatusRow({
   label,
@@ -29,6 +30,7 @@ function StatusRow({
   status: BudgetCheck["status"];
   ctx: BudgetCheck;
 }) {
+  const { t } = useI18n();
   const ok = status === "ok";
   const unknown = status === "unknown";
   const color = ok
@@ -39,15 +41,16 @@ function StatusRow({
   const text = ok
     ? "OK"
     : unknown
-      ? "sconosciuto"
-      : "budget insufficiente";
+      ? t("budget.unknown")
+      : t("budget.insufficient");
   return (
     <div className="flex items-center justify-between gap-2 py-1.5 text-sm">
       <span className="text-slate-300">{label}</span>
       <span className={`font-medium ${color}`}>{text}</span>
       <span className="text-xs text-slate-400">
         {formatTokens(ctx.needed)} / {formatTokens(ctx.contextWindow) ?? "—" }
-        {"  ·  headroom "}
+        {"  · "}
+        {t("budget.headroom")}{" "}
         {formatTokens(Math.max(0, ctx.headroom))}
       </span>
     </div>
@@ -55,11 +58,12 @@ function StatusRow({
 }
 
 function BlockRow({ check, index }: { check: BudgetCheck; index: number }) {
+  const { t } = useI18n();
   const ok = check.status === "ok";
   const unknown = check.status === "unknown";
   return (
     <div className="flex items-center justify-between gap-2 border-t border-slate-800/60 py-1.5 text-sm">
-      <span className="text-slate-300">Blocco {index + 1}</span>
+      <span className="text-slate-300">{t("budget.blockN", { n: index + 1 })}</span>
       <span
         className={`text-xs font-medium ${
           ok
@@ -70,10 +74,10 @@ function BlockRow({ check, index }: { check: BudgetCheck; index: number }) {
         }`}
       >
         {ok
-          ? "pronto"
+          ? t("budget.blockReady")
           : unknown
-            ? "verifica sospesa"
-            : "bloccato"}
+            ? t("budget.blockPending")
+            : t("budget.blocked")}
       </span>
       <span className="text-xs text-slate-400">
         {formatTokens(check.inputTokens)} / {formatTokens(check.contextWindow) ?? "—" }
@@ -91,24 +95,20 @@ export function BudgetPreview({
   model: GatewayModel | null;
   maxOutput: number | null | undefined;
 }) {
+  const { t } = useI18n();
   const chapter = useMemo(() => {
     if (!plan || !model) return null;
     return checkChapterBudget(plan.blocks, model, maxOutput);
   }, [plan, model, maxOutput]);
 
   if (!plan) {
-    return (
-      <p className="text-sm text-slate-400">
-        Nessun piano disponibile: esegui prima la segmentazione del capitolo.
-      </p>
-    );
+    return <p className="text-sm text-slate-400">{t("budget.noPlan")}</p>;
   }
 
   if (!model) {
     return (
       <div className="rounded-md border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
-        Seleziona un modello di traduzione per visualizzare la preview del
-        token budget.
+        {t("budget.pickModel")}
       </div>
     );
   }
@@ -117,23 +117,31 @@ export function BudgetPreview({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="card">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Blocchi</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            {t("budget.blocks")}
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">{plan.verification.blocks}</p>
         </div>
         <div className="card">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Limite/blocco</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            {t("budget.limitPerBlock")}
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">
             {formatTokens(plan.verification.limit)}
           </p>
         </div>
         <div className="card">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Finestra</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            {t("budget.window")}
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">
             {formatTokens(model.context_window) ?? "—"}
           </p>
         </div>
         <div className="card">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Ris. output</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            {t("budget.outputReserve")}
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">
             {formatTokens(
               typeof maxOutput === "number" ? maxOutput : 2048
@@ -144,11 +152,11 @@ export function BudgetPreview({
 
       <section aria-labelledby="budget-capitolo">
         <h3 id="budget-capitolo" className="mb-1 text-sm font-semibold text-white">
-          Budget capitolo
+          {t("budget.chapterBudget")}
         </h3>
         <div className="space-y-1">
           <StatusRow
-            label="Capitolo intero"
+            label={t("budget.wholeChapter")}
             status={chapter?.status ?? "unknown"}
             ctx={{
               status: chapter?.status ?? "unknown",
@@ -164,7 +172,7 @@ export function BudgetPreview({
 
       <section aria-labelledby="blocchi">
         <h3 id="blocchi" className="mb-1 text-sm font-semibold text-white">
-          Per blocco
+          {t("budget.perBlock")}
         </h3>
         <div className="card">
           {chapter?.perBlock.map((c, i) => (
@@ -175,8 +183,10 @@ export function BudgetPreview({
 
       {plan.verification.oversized_blocks.length > 0 && (
         <div className="rounded-md border border-red-800 bg-red-950/40 px-4 py-2 text-sm text-red-200">
-          Blocchi fuori budget (superano {formatTokens(plan.verification.limit)}
-          token totali): {plan.verification.oversized_blocks.join(", ")}.
+          {t("budget.oversized", {
+            limit: formatTokens(plan.verification.limit) ?? "",
+            list: plan.verification.oversized_blocks.join(", "),
+          })}
         </div>
       )}
     </div>

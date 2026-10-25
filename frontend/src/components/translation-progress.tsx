@@ -17,8 +17,11 @@ import {
   stopTranslation,
   type TranslationProgress,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function TranslationProgress() {
+  const { locale, t } = useI18n();
+  const intlLocale = locale === "it" ? "it-IT" : "en-GB";
   const [p, setP] = useState<TranslationProgress | null>(null);
   const [busy, setBusy] = useState<"stop" | "resume" | null>(null);
 
@@ -79,7 +82,7 @@ export default function TranslationProgress() {
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const etaMin = p.eta_seconds != null ? Math.max(1, Math.round(p.eta_seconds / 60)) : null;
   const fine = p.eta_seconds != null
-    ? new Date(Date.now() + p.eta_seconds * 1000).toLocaleTimeString("it-IT", {
+    ? new Date(Date.now() + p.eta_seconds * 1000).toLocaleTimeString(intlLocale, {
         hour: "2-digit",
         minute: "2-digit",
       })
@@ -88,10 +91,13 @@ export default function TranslationProgress() {
   return (
     <div className="mx-2 mb-2 rounded-md border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs">
       <p className="font-semibold text-indigo-200">
-        {inCorso ? "Traduzione in corso" : "Traduzione in pausa"}
+        {inCorso ? t("progress.running") : t("progress.paused")}
       </p>
       <p className="mt-1 text-slate-300">
-        {done.toLocaleString("it-IT")}/{total.toLocaleString("it-IT")} segmenti
+        {t("progress.segmentsCount", {
+          done: done.toLocaleString(intlLocale),
+          total: total.toLocaleString(intlLocale),
+        })}
         {" · "}{pct}%
       </p>
       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded bg-slate-700">
@@ -102,27 +108,27 @@ export default function TranslationProgress() {
       </div>
       {inCorso && etaMin != null ? (
         <p className="mt-1.5 text-slate-400">
-          ≈ {etaMin} min rimanenti · fine ≈ {fine}
+          {t("progress.eta", { min: etaMin, end: fine ?? "—" })}
         </p>
       ) : !inCorso ? (
-        <p className="mt-1.5 text-slate-500">
-          Traduzione in pausa — nessun job in esecuzione
-        </p>
+        <p className="mt-1.5 text-slate-500">{t("progress.pausedDetail")}</p>
       ) : (
-        <p className="mt-1.5 text-slate-500">
-          stima dei tempi al primo job completato
-        </p>
+        <p className="mt-1.5 text-slate-500">{t("progress.etaPending")}</p>
       )}
       {!inCorso && (p.jobs_failed ?? 0) > 0 && (
         <p className="mt-1 text-amber-300">
           {p.jobs_failed}{" "}
-          {p.jobs_failed === 1 ? "blocco fallito" : "blocchi falliti"} —{" "}
-          premi Riprendi per completare i segmenti rimasti
+          {p.jobs_failed === 1
+            ? t("progress.failedOne")
+            : t("progress.failedMany")}
+          {t("progress.failedHint")}
         </p>
       )}
       <p className="mt-1 text-slate-500">
-        {p.jobs_pending} {p.jobs_pending === 1 ? "job in coda" : "job in coda"}
-        {" · "}{p.jobs_completed} completati
+        {p.jobs_pending === 1
+          ? t("progress.queuedOne")
+          : t("progress.queuedMany", { n: p.jobs_pending ?? 0 })}
+        {" · "}{t("progress.completedJobs", { n: p.jobs_completed ?? 0 })}
       </p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {inCorso && (
@@ -132,7 +138,7 @@ export default function TranslationProgress() {
             disabled={busy !== null}
             className="rounded border border-red-400/40 bg-red-500/15 px-2 py-1 font-medium text-red-200 hover:bg-red-500/25 disabled:opacity-40"
           >
-            {busy === "stop" ? "Arresto…" : "⏹ Ferma"}
+            {busy === "stop" ? t("progress.stopping") : t("progress.stop")}
           </button>
         )}
         <button
@@ -141,7 +147,7 @@ export default function TranslationProgress() {
           disabled={busy !== null}
           className="rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-40"
         >
-          {busy === "resume" ? "Accodamento…" : "▶ Riprendi"}
+          {busy === "resume" ? t("progress.queueing") : t("progress.resume")}
         </button>
       </div>
     </div>

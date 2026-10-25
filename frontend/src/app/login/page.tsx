@@ -10,9 +10,11 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { loginRequest } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +30,10 @@ export default function LoginPage() {
         router.replace("/");
         router.refresh();
       } else {
-        setError(res.detail || "Credenziali non valide");
+        setError(res.detail || t("auth.invalidCredentials"));
       }
     } catch {
-      setError("Backend non raggiungibile");
+      setError(t("auth.backendUnreachable"));
     } finally {
       setBusy(false);
     }
@@ -39,17 +41,15 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto mt-24 w-full max-w-sm">
-      <h1 className="text-2xl font-bold tracking-tight">Accesso a Trans</h1>
-      <p className="mt-1 text-sm text-slate-400">
-        Piattaforma locale di traduzione letteraria EN→IT
-      </p>
+      <h1 className="text-2xl font-bold tracking-tight">{t("auth.title")}</h1>
+      <p className="mt-1 text-sm text-slate-400">{t("auth.subtitle")}</p>
       <form
         onSubmit={onSubmit}
         className="mt-6 space-y-4 rounded-lg border border-slate-800 bg-slate-900/40 p-6"
       >
         <div>
           <label htmlFor="email" className="block text-sm font-medium">
-            Email
+            {t("auth.email")}
           </label>
           <input
             id="email"
@@ -59,12 +59,12 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-slate-500"
-            placeholder="utente@esempio.it"
+            placeholder={t("auth.emailPlaceholder")}
           />
         </div>
         <div>
           <label htmlFor="password" className="block text-sm font-medium">
-            Password
+            {t("auth.password")}
           </label>
           <input
             id="password"
@@ -86,7 +86,7 @@ export default function LoginPage() {
           disabled={busy}
           className="w-full rounded-md bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
         >
-          {busy ? "Accesso…" : "Accedi"}
+          {busy ? t("auth.submitting") : t("auth.submit")}
         </button>
       </form>
     </div>

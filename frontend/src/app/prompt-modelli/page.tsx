@@ -43,6 +43,7 @@ import {
 } from "@/lib/api";
 import { QUERY_KEY_MODELS, QUERY_KEY_PROJECTS } from "@/lib/constants";
 import type { ModelSettings, GatewayModel } from "@/lib/api-types";
+import { useI18n } from "@/lib/i18n";
 
 const DEFAULT_SETTINGS: ModelSettings = {
   translation: {},
@@ -64,6 +65,7 @@ function buildPayload(
 
 /** Riga capability sintetica per un modello scelto in un selettore. */
 function SelectedCapability({ model }: { model: GatewayModel }) {
+  const { t } = useI18n();
   const ctx =
     model.context_window != null
       ? `${(model.context_window / 1000).toFixed(0)}k ctx`
@@ -83,7 +85,11 @@ function SelectedCapability({ model }: { model: GatewayModel }) {
             : "bg-slate-700 text-slate-300"
         }`}
       >
-        {model.status === "available" ? "attivo" : model.status === "offline" ? "offline" : "degradato"}
+        {model.status === "available"
+          ? t("dash.modelActive")
+          : model.status === "offline"
+            ? t("promptModels.statusOffline")
+            : t("promptModels.statusDegraded")}
       </span>
     </div>
   );
@@ -91,6 +97,7 @@ function SelectedCapability({ model }: { model: GatewayModel }) {
 
 export default function PromptModelsPage() {
   const queryClient = useQueryClient();
+  const { locale, t } = useI18n();
 
   // --- progetto: rotta statica → risolto lato client (pattern QA/Export) ---
   const projectsQuery = useQuery({
@@ -141,7 +148,7 @@ export default function PromptModelsPage() {
   // --- salvataggio (AC3: persistenza per progetto) ---
   const saveMutation = useMutation({
     mutationFn: async (payload: ReturnType<typeof buildPayload>) => {
-      if (!projectId) throw new Error("nessun progetto selezionato");
+      if (!projectId) throw new Error(t("promptModels.errNoProject"));
       return updateProject(projectId, payload);
     },
     onSuccess: () => {
@@ -192,7 +199,9 @@ export default function PromptModelsPage() {
     setSavedAt(null);
     saveMutation.mutate(buildPayload(translationModelId, textModelId, settings), {
       onSuccess: () => {
-        setSavedAt(new Date().toLocaleTimeString("it-IT"));
+        setSavedAt(
+          new Date().toLocaleTimeString(locale === "it" ? "it-IT" : "en-GB")
+        );
         setDirty(false);
       },
     });
@@ -201,14 +210,16 @@ export default function PromptModelsPage() {
   const markDirty = () => setDirty(true);
 
   if (projectsQuery.isLoading) {
-    return <Loading label="Caricamento progetti…" />;
+    return <Loading label={t("projects.loading")} />;
   }
 
   if (!projectId) {
     return (
       <div className="space-y-3">
-        <h1 className="text-2xl font-bold text-white">Prompt e modelli</h1>
-        <ErrorNote message="Nessun progetto disponibile: creane uno dalla pagina Progetti." />
+        <h1 className="text-2xl font-bold text-white">
+          {t("promptModels.title")}
+        </h1>
+        <ErrorNote message={t("promptModels.noProjects")} />
       </div>
     );
   }
@@ -216,14 +227,16 @@ export default function PromptModelsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Prompt e modelli</h1>
+        <h1 className="text-2xl font-bold text-white">
+          {t("promptModels.title")}
+        </h1>
         <select
           value={projectId}
           onChange={(e) => {
             setProjectId(e.target.value);
           }}
           className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white"
-          aria-label="Progetto"
+          aria-label={t("importPage.project")}
         >
           {projectsQuery.data?.map((p) => (
             <option key={p.id} value={p.id}>
@@ -238,25 +251,19 @@ export default function PromptModelsPage() {
           </span>
         )}
       </div>
-      <p className="mt-1 text-sm text-slate-400">
-        Scegli i due modelli (§8.2), regola le impostazioni avanzate e verifica
-        il budget token del capitolo selezionato (§15.3).
-      </p>
+      <p className="mt-1 text-sm text-slate-400">{t("promptModels.intro")}</p>
 
       {/* Matrice delle capability (§8.1) */}
       <section className="mt-6" aria-labelledby="matrice-title">
         <h2 id="matrice-title" className="mb-2 text-sm font-semibold text-white">
-          Matrice delle capability di LLM Gateway
+          {t("promptModels.matrixTitle")}
         </h2>
         {modelsQuery.isLoading ? (
-          <Loading label="Caricamento modelli…" />
+          <Loading label={t("dash.modelsLoading")} />
         ) : modelsQuery.isError ? (
-          <ErrorNote message="Impossibile contattare LLM Gateway: assicurati che sia attivo." />
+          <ErrorNote message={t("promptModels.gatewayDown")} />
         ) : models.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            Nessun modello esposto dal proxy: verifica che llama-swap abbia
-            almeno un modello registrato.
-          </p>
+          <p className="text-sm text-slate-400">{t("promptModels.noModels")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {models.map((m) => (
@@ -272,7 +279,11 @@ export default function PromptModelsPage() {
                         : "bg-slate-700 text-slate-300"
                     }`}
                   >
-                    {m.status === "available" ? "attivo" : m.status === "offline" ? "offline" : "degradato"}
+                    {m.status === "available"
+                      ? t("dash.modelActive")
+                      : m.status === "offline"
+                        ? t("promptModels.statusOffline")
+                        : t("promptModels.statusDegraded")}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500">{m.provider}</p>
@@ -307,15 +318,15 @@ export default function PromptModelsPage() {
       {/* Selettori (§8.2): DUE campi distinti e obbligatori */}
       <section className="mt-6" aria-labelledby="selettori-title">
         <h2 id="selettori-title" className="mb-2 text-sm font-semibold text-white">
-          Selezione modelli
+          {t("promptModels.selectorsTitle")}
         </h2>
         <div className="space-y-4">
           <div>
             <ModelSelector
-              label="Modello di analisi/testo"
+              label={t("promptModels.textModelLabel")}
               name="text-model"
               value={textModelId ?? ""}
-              placeholder="Seleziona un modello di analisi/testo"
+              placeholder={t("promptModels.textModelPlaceholder")}
               models={models}
               onChange={(id) => {
                 setTextModelId(id || null);
@@ -326,10 +337,10 @@ export default function PromptModelsPage() {
           </div>
           <div>
             <ModelSelector
-              label="Modello di traduzione"
+              label={t("promptModels.translationModelLabel")}
               name="translation-model"
               value={translationModelId ?? ""}
-              placeholder="Seleziona un modello di traduzione"
+              placeholder={t("promptModels.translationModelPlaceholder")}
               models={models}
               onChange={(id) => {
                 setTranslationModelId(id || null);
@@ -344,7 +355,7 @@ export default function PromptModelsPage() {
       {/* Impostazioni avanzate (§8.2 / §16.3) */}
       <section className="mt-6" aria-labelledby="avanzate-title">
         <h2 id="avanzate-title" className="mb-2 text-sm font-semibold text-white">
-          Impostazioni avanzate
+          {t("promptModels.advancedTitle")}
         </h2>
         <AdvancedSettingsPanel
           settings={settings}
@@ -356,18 +367,20 @@ export default function PromptModelsPage() {
       </section>
 
       {/* Salvataggio (AC3) */}
-      <section className="mt-6 flex items-center gap-4" aria-label="Salvataggio">
+      <section className="mt-6 flex items-center gap-4" aria-label={t("promptModels.saving")}>
         <button
           type="button"
           className="btn-primary"
           disabled={saveMutation.isPending}
           onClick={save}
         >
-          {saveMutation.isPending ? "Salvataggio…" : "Salva impostazioni"}
+          {saveMutation.isPending
+            ? t("promptModels.saving")
+            : t("promptModels.saveButton")}
         </button>
         {savedAt && !saveMutation.isError && (
           <span className="text-sm text-emerald-300">
-            Impostazioni salvate ({savedAt})
+            {t("promptModels.savedAt", { time: savedAt })}
           </span>
         )}
         {saveMutation.isError && (
@@ -375,24 +388,26 @@ export default function PromptModelsPage() {
             message={
               saveMutation.error instanceof ApiError
                 ? saveMutation.error.detail
-                : "Impossibile salvare le impostazioni."
+                : t("promptModels.saveError")
             }
           />
         )}
         {dirty && !savedAt && !saveMutation.isError && (
-          <span className="text-xs text-amber-300">Modifiche non salvate</span>
+          <span className="text-xs text-amber-300">
+            {t("promptModels.unsaved")}
+          </span>
         )}
       </section>
 
       {/* Preview token budget (§5.4 / §15.3) sul capitolo selezionato */}
       <section className="mt-6" aria-labelledby="budget-title">
         <h2 id="budget-title" className="mb-2 text-sm font-semibold text-white">
-          Preview token budget
+          {t("promptModels.budgetTitle")}
         </h2>
         <div className="space-y-4">
           <div className="w-full max-w-xs">
             <label htmlFor="budget-chapter" className="label">
-              Capitolo
+              {t("promptModels.chapterLabel")}
             </label>
             <select
               id="budget-chapter"
@@ -400,7 +415,7 @@ export default function PromptModelsPage() {
               value={chapterId}
               onChange={(e) => setChapterId(e.target.value)}
             >
-              <option value="">Seleziona un capitolo…</option>
+              <option value="">{t("promptModels.chapterPlaceholder")}</option>
               {chapters.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
@@ -411,13 +426,13 @@ export default function PromptModelsPage() {
               chapters.length === 0 &&
               structureQuery.data.nodes.length > 0 && (
                 <p className="mt-1 text-[11px] text-amber-300">
-                  Nessun nodo di tipo capitolo nella struttura del progetto.
+                  {t("promptModels.noChapters")}
                 </p>
               )}
           </div>
           {chapterId ? (
             planQuery.isError ? (
-              <ErrorNote message="Piano non disponibile per questo capitolo: esegui prima la segmentazione." />
+              <ErrorNote message={t("promptModels.planUnavailable")} />
             ) : (
               <BudgetPreview
                 plan={planQuery.data ?? null}
@@ -427,8 +442,7 @@ export default function PromptModelsPage() {
             )
           ) : (
             <p className="text-sm text-slate-400">
-              Seleziona un capitolo per stimare i blocchi e verificare il
-              budget token (§15.3).
+              {t("promptModels.budgetHint")}
             </p>
           )}
         </div>

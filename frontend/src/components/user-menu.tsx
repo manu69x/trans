@@ -9,17 +9,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getEmail, getRole, isLoggedIn, logoutRequest } from "@/lib/auth";
-
-const ROLE_LABEL_IT: Record<string, string> = {
-  admin: "Amministratore",
-  project_manager: "Project manager",
-  translator: "Traduttore",
-  revisor: "Revisore",
-  qa_reader: "Lettore QA",
-};
+import { useI18n } from "@/lib/i18n";
 
 export default function UserMenu() {
   const router = useRouter();
+  const { t, dict } = useI18n();
+  const roleLabels = dict.userMenu.roleLabel as Record<string, string>;
   const [logged, setLogged] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -41,17 +36,17 @@ export default function UserMenu() {
   return (
     <div className="border-t border-slate-800 px-4 py-3 text-xs">
       <p className="truncate font-medium text-slate-300" title={email ?? ""}>
-        {email ?? "utente"}
+        {email ?? t("userMenu.anonymous")}
       </p>
       <p className="mt-0.5 text-slate-500">
-        {role ? (ROLE_LABEL_IT[role] ?? role) : "ruolo n/d"}
+        {role ? (roleLabels[role] ?? role) : t("userMenu.roleNA")}
       </p>
       <button
         type="button"
         onClick={onLogout}
         className="mt-2 rounded-md border border-slate-700 px-2 py-1 text-slate-300 hover:bg-slate-800 hover:text-white"
       >
-        Esci
+        {t("userMenu.logout")}
       </button>
     </div>
   );

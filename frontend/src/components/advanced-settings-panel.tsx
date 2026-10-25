@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Pannelo impostazioni avanzate (§8.2 / PRD §16.3).
  *
@@ -10,6 +12,7 @@
  */
 
 import type { ModelSettings } from "@/lib/api-types";
+import { useI18n } from "@/lib/i18n";
 
 const EMPTY_SETTINGS: ModelSettings = {
   translation: {},
@@ -84,6 +87,7 @@ function ReasoningToggle({
   value: "on" | "off" | null | undefined;
   onChange: (v: "on" | "off" | null) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-4">
       <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-300">
@@ -111,24 +115,16 @@ function ReasoningToggle({
           checked={value == null}
           onChange={() => onChange(null)}
         />
-        Di default
+        {t("advSettings.triState")}
       </label>
     </div>
   );
 }
 
-/** Range di temperatura consigliato dal §8.2, per tipo di modello. */
+/** Range di temperatura consigliato dal §8.2, per tipo di modello (hint nel dizionario). */
 const TEMPERATURE_RANGE = {
-  translation: {
-    min: 0.1,
-    max: 0.3,
-    hint: "0.1–0.3 (§8.2): più basso = più fedele al sorgente",
-  },
-  text: {
-    min: 0,
-    max: 0.2,
-    hint: "0–0.2 (§8.2): output deterministico per estrazione/analisi",
-  },
+  translation: { min: 0.1, max: 0.3 },
+  text: { min: 0, max: 0.2 },
 } as const;
 
 function ModelPanel({
@@ -146,6 +142,7 @@ function ModelPanel({
   temperatureMax?: number;
   temperatureHint?: string;
 }) {
+  const { t } = useI18n();
   const update = <K extends keyof ModelSettings["translation"]>(
     key: K,
     value: ModelSettings["translation"][K] | null
@@ -159,8 +156,8 @@ function ModelPanel({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field
           htmlFor={`${title}-temperature`}
-          label="Temperatura"
-          hint={temperatureHint ?? "0–1, più alto = più creativo"}
+          label={t("advSettings.temperature")}
+          hint={temperatureHint ?? t("advSettings.tempHint")}
         >
           <NumberInput
             id={`${title}-temperature`}
@@ -172,7 +169,11 @@ function ModelPanel({
             placeholder="—"
           />
         </Field>
-        <Field htmlFor={`${title}-top_p`} label="Top-p" hint="0–1, filtra le parole più probabili">
+        <Field
+          htmlFor={`${title}-top_p`}
+          label={t("advSettings.topP")}
+          hint={t("advSettings.topPHint")}
+        >
           <NumberInput
             id={`${title}-top_p`}
             value={settings.top_p}
@@ -183,7 +184,11 @@ function ModelPanel({
             placeholder="—"
           />
         </Field>
-        <Field htmlFor={`${title}-seed`} label="Seed" hint="Ripetibilità: stesso seed → stessa generazione">
+        <Field
+          htmlFor={`${title}-seed`}
+          label={t("advSettings.seed")}
+          hint={t("advSettings.seedHint")}
+        >
           <NumberInput
             id={`${title}-seed`}
             value={settings.seed}
@@ -193,17 +198,21 @@ function ModelPanel({
             placeholder="—"
           />
         </Field>
-        <Field htmlFor={`${title}-max_output`} label="Output massimo" hint="Token massimi per risposta">
+        <Field
+          htmlFor={`${title}-max_output`}
+          label={t("advSettings.maxOutput")}
+          hint={t("advSettings.maxOutputHint")}
+        >
           <NumberInput
             id={`${title}-max_output`}
             value={settings.max_output}
             onChange={(v) => update("max_output", v)}
             min={0}
             step={256}
-            placeholder="Es. 2048"
+            placeholder={t("advSettings.maxOutputPlaceholder")}
           />
         </Field>
-        <Field htmlFor={`${title}-reasoning`} label="Reasoning">
+        <Field htmlFor={`${title}-reasoning`} label={t("advSettings.reasoning")}>
           <ReasoningToggle
             id={`${title}-reasoning`}
             value={settings.reasoning}
@@ -212,8 +221,8 @@ function ModelPanel({
         </Field>
         <Field
           htmlFor={`${title}-reasoning_budget`}
-          label="Budget reasoning"
-          hint="Token riservati al ragionamento (se attivato)"
+          label={t("advSettings.reasoningBudget")}
+          hint={t("advSettings.reasoningBudgetHint")}
         >
           <NumberInput
             id={`${title}-reasoning_budget`}
@@ -224,7 +233,11 @@ function ModelPanel({
             placeholder="—"
           />
         </Field>
-        <Field htmlFor={`${title}-timeout`} label="Timeout (s)" hint="Scadenza della richiesta">
+        <Field
+          htmlFor={`${title}-timeout`}
+          label={t("advSettings.timeout")}
+          hint={t("advSettings.timeoutHint")}
+        >
           <NumberInput
             id={`${title}-timeout`}
             value={settings.timeout}
@@ -234,7 +247,11 @@ function ModelPanel({
             placeholder="—"
           />
         </Field>
-        <Field htmlFor={`${title}-retry`} label="Ritenti" hint="Tentativi in caso di errore">
+        <Field
+          htmlFor={`${title}-retry`}
+          label={t("advSettings.retry")}
+          hint={t("advSettings.retryHint")}
+        >
           <NumberInput
             id={`${title}-retry`}
             value={settings.retry}
@@ -247,12 +264,12 @@ function ModelPanel({
       </div>
       <div className="space-y-1.5">
         <label htmlFor={`${title}-prompt_template`} className="label">
-          Template prompt
+          {t("advSettings.promptTemplate")}
         </label>
         <textarea
           id={`${title}-prompt_template`}
           className="input min-h-24 font-mono text-xs"
-          placeholder="Placeholder del template versionato…"
+          placeholder={t("advSettings.promptTemplatePlaceholder")}
           value={settings.prompt_template ?? ""}
           onChange={(e) => update("prompt_template", e.target.value)}
         />
@@ -268,25 +285,26 @@ export function AdvancedSettingsPanel({
   settings: ModelSettings;
   onChange: (next: ModelSettings) => void;
 }) {
+  const { t } = useI18n();
   const next = settings ?? EMPTY_SETTINGS;
 
   return (
     <div className="space-y-6">
       <ModelPanel
-        title="Modello di traduzione"
+        title={t("advSettings.translationTitle")}
         settings={next.translation}
         onChange={(v) => onChange({ ...next, translation: v })}
         temperatureMin={TEMPERATURE_RANGE.translation.min}
         temperatureMax={TEMPERATURE_RANGE.translation.max}
-        temperatureHint={TEMPERATURE_RANGE.translation.hint}
+        temperatureHint={t("advSettings.tempHintTranslation")}
       />
       <ModelPanel
-        title="Modello di analisi/testo"
+        title={t("advSettings.textTitle")}
         settings={next.text}
         onChange={(v) => onChange({ ...next, text: v })}
         temperatureMin={TEMPERATURE_RANGE.text.min}
         temperatureMax={TEMPERATURE_RANGE.text.max}
-        temperatureHint={TEMPERATURE_RANGE.text.hint}
+        temperatureHint={t("advSettings.tempHintText")}
       />
     </div>
   );

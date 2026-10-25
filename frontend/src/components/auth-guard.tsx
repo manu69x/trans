@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 
 import { isLoggedIn, } from "@/lib/auth";
 import { authDisabled, probeAuthMode } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function AuthGuard({
   children,
@@ -23,6 +24,7 @@ export default function AuthGuard({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function AuthGuard({
   if (!checked) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">
-        Verifica sessione…
+        {t("auth.checkingSession")}
       </div>
     );
   }

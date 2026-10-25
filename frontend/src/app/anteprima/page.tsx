@@ -18,6 +18,7 @@ import {
   listProjects,
   type BookFlowSegment,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 const CENTERED = new Set(["scene_break", "epigraph", "back_matter", "front_matter"]);
 
@@ -47,6 +48,7 @@ function RichText({ text }: { text: string }) {
 }
 
 export default function AnteprimaPage() {
+  const { t } = useI18n();
   const [projectId, setProjectId] = useState("");
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const [watermark, setWatermark] = useState(false);
@@ -124,11 +126,11 @@ export default function AnteprimaPage() {
   if (!projectId) {
     return (
       <div className="mx-auto max-w-xl">
-        <h1 className="text-2xl font-bold text-white">Anteprima</h1>
+        <h1 className="text-2xl font-bold text-white">{t("preview.title")}</h1>
         {projectsQuery.isLoading ? (
-          <Loading label="Caricamento progetti…" />
+          <Loading label={t("projects.loading")} />
         ) : (
-          <ErrorNote message="Nessun progetto disponibile." />
+          <ErrorNote message={t("preview.noProjects")} />
         )}
       </div>
     );
@@ -138,7 +140,7 @@ export default function AnteprimaPage() {
     <div className="mx-auto max-w-7xl">
       {/* Barra controlli */}
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Anteprima</h1>
+        <h1 className="text-2xl font-bold text-white">{t("preview.title")}</h1>
         <select
           value={projectId}
           onChange={(e) => {
@@ -146,7 +148,7 @@ export default function AnteprimaPage() {
             setPage(0);
           }}
           className="rounded bg-slate-800 px-2 py-1 text-sm text-white"
-          aria-label="Progetto"
+          aria-label={t("importPage.project")}
         >
           {(projectsQuery.data ?? []).map((p) => (
             <option key={p.id} value={p.id}>{p.title}</option>
@@ -161,7 +163,7 @@ export default function AnteprimaPage() {
               setPage(0);
             }}
           />
-          Includi bozze
+          {t("preview.includeDrafts")}
         </label>
         {includeDrafts && (
           <label className="flex items-center gap-2 text-sm text-slate-400">
@@ -170,18 +172,18 @@ export default function AnteprimaPage() {
               checked={watermark}
               onChange={(e) => setWatermark(e.target.checked)}
             />
-            Watermark [BOZZA]
+            {t("preview.watermark")}
           </label>
         )}
         <span className="ml-auto text-xs text-slate-500">
-          ← → / PagSu / PagGiù / Inizio / Fine per sfogliare
+          {t("preview.keyboardHint")}
         </span>
       </div>
 
       {bookQuery.isLoading ? (
-        <Loading label="Impagino il libro…" />
+        <Loading label={t("preview.paginating")} />
       ) : bookQuery.isError ? (
-        <ErrorNote message="Impossibile impaginare il libro." />
+        <ErrorNote message={t("preview.paginateError")} />
       ) : book?.error ? (
         <div className="mt-4 rounded border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
           {book.message}
@@ -195,14 +197,14 @@ export default function AnteprimaPage() {
               disabled={safePage === 0}
               className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-40"
             >
-              ⏮ Inizio
+              {t("preview.first")}
             </button>
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
               className="rounded bg-slate-800 px-3 py-1 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-40"
             >
-              ← Precedente
+              {t("preview.prev")}
             </button>
             <input
               type="number"
@@ -216,28 +218,30 @@ export default function AnteprimaPage() {
                 }
               }}
               className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-sm text-white"
-              aria-label="Pagina"
+              aria-label={t("preview.pageAria")}
             />
-            <span className="text-sm text-slate-400">di {book.total_pages}</span>
+            <span className="text-sm text-slate-400">
+              {t("preview.of", { n: book.total_pages })}
+            </span>
             <button
               onClick={() => setPage((p) => Math.min(book.total_pages - 1, p + 1))}
               disabled={safePage >= book.total_pages - 1}
               className="rounded bg-slate-800 px-3 py-1 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-40"
             >
-              Successivo →
+              {t("preview.next")}
             </button>
             <button
               onClick={() => setPage(book.total_pages - 1)}
               disabled={safePage >= book.total_pages - 1}
               className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-40"
             >
-              Fine ⏭
+              {t("preview.last")}
             </button>
             <button
               onClick={() => setTocOpen((v) => !v)}
               className="ml-auto rounded bg-slate-800 px-3 py-1 text-sm text-slate-200 hover:bg-slate-700"
             >
-              {tocOpen ? "Chiudi indice" : "📑 Capitoli"}
+              {tocOpen ? t("preview.closeToc") : t("preview.openToc")}
             </button>
           </div>
 
@@ -259,7 +263,7 @@ export default function AnteprimaPage() {
                 >
                   {c.title}{" "}
                   <span className="text-[10px] text-slate-500">
-                    → pag. {c.page + 1}
+                    {t("preview.toPage", { n: c.page + 1 })}
                   </span>
                 </button>
               ))}
@@ -285,7 +289,7 @@ export default function AnteprimaPage() {
                     <RichText text={s.target} />
                     {s.is_draft && watermark && (
                       <span className="ml-1 rounded bg-red-100 px-1 text-[10px] font-semibold text-red-700">
-                        [BOZZA]
+                        {t("preview.draftBadge")}
                       </span>
                     )}
                   </p>
@@ -321,10 +325,7 @@ export default function AnteprimaPage() {
           </div>
 
           <p className="mt-2 text-xs text-slate-500">
-            Paginazione calcolata sul testo italiano (colonna sinistra, ~
-            {book.page_size_chars} caratteri/pagina; la colonna inglese mostra
-            gli stessi segmenti). L&apos;export PDF impagina in modo
-            indipendente (A5, ~3.400 caratteri/pagina).
+            {t("preview.paginationNote", { chars: book.page_size_chars })}
           </p>
         </>
       ) : null}

@@ -11,6 +11,7 @@
  */
 
 import type { GatewayModel } from "@/lib/api-types";
+import { useI18n } from "@/lib/i18n";
 
 const CAPABILITY: {
   key: keyof GatewayModel;
@@ -25,6 +26,7 @@ const CAPABILITY: {
 ];
 
 function CapabilityChips({ model }: { model: GatewayModel }) {
+  const { t } = useI18n();
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {CAPABILITY.map((c) => {
@@ -37,7 +39,9 @@ function CapabilityChips({ model }: { model: GatewayModel }) {
                 ? "bg-indigo-500/20 text-indigo-200"
                 : "bg-slate-800 text-slate-400"
             }`}
-            title={`${c.label}: ${active ? "supportato" : "non supportato"}`}
+            title={`${c.label}: ${
+              active ? t("modelSelector.supported") : t("modelSelector.notSupported")
+            }`}
           >
             {active ? c.ok : c.off}
           </span>
@@ -54,7 +58,7 @@ export function ModelSelector({
   onChange,
   models,
   disabled = false,
-  placeholder = "Seleziona un modello",
+  placeholder,
   className = "",
 }: {
   label: string;
@@ -66,7 +70,9 @@ export function ModelSelector({
   placeholder?: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const selected = models.find((m) => m.id === value) ?? null;
+  const effectivePlaceholder = placeholder ?? t("modelSelector.defaultPlaceholder");
 
   return (
     <div className={className}>
@@ -81,7 +87,7 @@ export function ModelSelector({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{placeholder}</option>
+        <option value="">{effectivePlaceholder}</option>
         {models.map((m) => (
           // §8.1: llama-swap loads models ON DEMAND — "offline" means
           // "not currently loaded", NOT "unusable". Every listed model is

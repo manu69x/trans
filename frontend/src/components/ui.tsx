@@ -1,6 +1,9 @@
+"use client";
+
 /** Componenti UI condivisi: badge di stato, stati di caricamento/errore. */
 
 import { QUERY_KEY_PROJECTS } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
 const STATUS_CLASS: Record<string, string> = {
   DRAFT: "bg-slate-700 text-slate-200",
@@ -16,31 +19,21 @@ const STATUS_CLASS: Record<string, string> = {
   DEFAULT: "bg-slate-700 text-slate-200",
 };
 
-export const STATUS_LABEL_IT: Record<string, string> = {
-  DRAFT: "Bozza",
-  IMPORTING: "Importazione",
-  PARSED: "Analizzato",
-  STRUCTURE_REVIEW: "Revisione struttura",
-  ENTITY_REVIEW: "Revisione entità",
-  READY_FOR_TRANSLATION: "Pronto per la traduzione",
-  TRANSLATING: "In traduzione",
-  QA_REVIEW: "Revisione QA",
-  APPROVED: "Approvato",
-  EXPORTED: "Esportato",
-};
-
 export function StatusBadge({ status }: { status: string }) {
+  const { dict } = useI18n();
+  const labels = dict.enums.projectStatus as Record<string, string>;
   return (
     <span className={`badge ${STATUS_CLASS[status] ?? STATUS_CLASS.DEFAULT}`}>
-      {STATUS_LABEL_IT[status] ?? status}
+      {labels[status] ?? status}
     </span>
   );
 }
 
-export function Loading({ label = "Caricamento…" }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
     <p className="py-8 text-center text-sm text-slate-400" role="status">
-      {label}
+      {label ?? t("common.loading")}
     </p>
   );
 }
@@ -58,10 +51,13 @@ export function ErrorNote({ message }: { message: string }) {
 
 export { QUERY_KEY_PROJECTS };
 
-/** Formatta una data ISO in italiano. */
-export function formatDateTime(iso: string | null | undefined): string {
+/** Formatta una data ISO nel locale richiesto (default IT). */
+export function formatDateTime(
+  iso: string | null | undefined,
+  locale: "it" | "en" = "it"
+): string {
   if (!iso) return "—";
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat(locale === "it" ? "it-IT" : "en-GB", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(iso));

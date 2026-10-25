@@ -45,15 +45,7 @@ import {
   type EntityEvidence as EntityEvidenceDto,
   type StructureNode,
 } from "@/lib/api";
-import {
-  ENTITY_PRIORITY_LABEL_IT,
-  ENTITY_STATUS_LABEL_IT,
-  ENTITY_TYPE_LABEL_IT,
-  GRAMMATICAL_NUMBER_LABEL_IT,
-  ITALIAN_GENDER_LABEL_IT,
-  REFERENTIAL_GENDER_LABEL_IT,
-  TRANSLATION_POLICY_LABEL_IT,
-} from "@/lib/constants";
+import { useI18n } from "@/lib/i18n";
 
 const STATUS_CLASS: Record<string, string> = {
   proposed: "bg-slate-700 text-slate-200",
@@ -82,6 +74,23 @@ function chapterLabels(nodes: StructureNode[]): {
 
 export default function EntitiesPage() {
   const queryClient = useQueryClient();
+  const { locale, t, dict } = useI18n();
+  const entityStatusLabels = dict.enums.entityStatus as Record<string, string>;
+  const entityTypeLabels = dict.enums.entityType as Record<string, string>;
+  const referentialGenderLabels = dict.enums.referentialGender as Record<
+    string,
+    string
+  >;
+  const italianGenderLabels = dict.enums.italianGender as Record<string, string>;
+  const grammaticalNumberLabels = dict.enums.grammaticalNumber as Record<
+    string,
+    string
+  >;
+  const translationPolicyLabels = dict.enums.translationPolicy as Record<
+    string,
+    string
+  >;
+  const priorityLabels = dict.enums.entityPriority as Record<string, string>;
 
   const projectsQuery = useQuery({
     queryKey: ["progetti"],
@@ -298,7 +307,7 @@ export default function EntitiesPage() {
           ? err.detail
           : err instanceof Error
             ? err.message
-            : "Operazione non riuscita"
+            : t("importPage.opFailed")
       );
     } finally {
       setBusy(false);
@@ -312,7 +321,7 @@ export default function EntitiesPage() {
         method: "POST",
       });
     });
-    setNotice("Estrazione entità avviata (job in coda).");
+    setNotice(t("entitiesPage.extractStarted"));
   }
 
   async function onExport(fmt: "csv" | "tbx") {
@@ -325,7 +334,7 @@ export default function EntitiesPage() {
       a.click();
       URL.revokeObjectURL(url);
     });
-    setNotice(`Esportazione ${fmt.toUpperCase()} pronta.`);
+    setNotice(t("entitiesPage.exportReady", { fmt: fmt.toUpperCase() }));
   }
 
   async function onImport(file: File, fmt: "csv" | "tbx" | "auto") {
@@ -333,7 +342,7 @@ export default function EntitiesPage() {
       const { imported } = await importEntities(
         projectId as string, file, file.name, fmt
       );
-      setNotice(`Importate ${imported} entità.`);
+      setNotice(t("entitiesPage.imported", { n: imported }));
     });
   }
 
@@ -341,7 +350,7 @@ export default function EntitiesPage() {
     await run(async () => {
       await bulkStatusEntities(projectId as string, ids, "approved");
     });
-    setNotice(`${ids.length} entità approvate.`);
+    setNotice(t("entitiesPage.bulkApproved", { n: ids.length }));
     invalidateAll();
   }
 
@@ -350,7 +359,7 @@ export default function EntitiesPage() {
     await run(async () => {
       await bulkStatusEntities(projectId as string, ids, "proposed");
     });
-    setNotice(`${ids.length} entità riportate a "proposto".`);
+    setNotice(t("entitiesPage.bulkProposed", { n: ids.length }));
     invalidateAll();
   }
 
@@ -361,7 +370,7 @@ export default function EntitiesPage() {
       const all = await listAllEntities(projectId as string, currentFilters());
       const ids = all.filter((e) => e.status !== "approved").map((e) => e.id);
       await bulkStatusEntities(projectId as string, ids, "approved");
-      setNotice(`${ids.length} entità approvate.`);
+      setNotice(t("entitiesPage.bulkApproved", { n: ids.length }));
       invalidateAll();
     } finally {
       setBulkBusy(false);
@@ -392,7 +401,10 @@ export default function EntitiesPage() {
       for (let i = 0; i < ids.length; i += CHUNK) {
         const slice = ids.slice(i, i + CHUNK);
         setNotice(
-          `Traduzione nomi: ${Math.min(i + slice.length, ids.length)}/${ids.length} in corso…`
+          t("entitiesPage.namesProgress", {
+            done: Math.min(i + slice.length, ids.length),
+            total: ids.length,
+          })
         );
         const res = await translateEntityNames(
           projectId as string, slice
@@ -403,10 +415,12 @@ export default function EntitiesPage() {
         invalidateAll();
       }
       setNotice(
-        `Traduzione nomi completata su ${ids.length} entità: ` +
-        `${translated} tradotti, ` +
-        `${untranslatable} non traducibili (Nome IT lasciato vuoto)` +
-        (failed ? `, ${failed} falliti` : "") + "."
+        t("entitiesPage.namesDone", {
+          total: ids.length,
+          translated,
+          untranslatable,
+          failed: failed ? t("entitiesPage.failedSuffix", { n: failed }) : "",
+        })
       );
       invalidateAll();
     } finally {
@@ -422,7 +436,7 @@ export default function EntitiesPage() {
       await bulkStatusEntities(
         projectId as string, all.map((e) => e.id), "proposed"
       );
-      setNotice(`${all.length} entità riportate a "proposto".`);
+      setNotice(t("entitiesPage.bulkProposed", { n: all.length }));
       invalidateAll();
     } finally {
       setBulkBusy(false);
@@ -490,7 +504,7 @@ export default function EntitiesPage() {
       (document.getElementById("split-alias") as HTMLInputElement).value = "";
     if (document.getElementById("split-target"))
       (document.getElementById("split-target") as HTMLInputElement).value = "";
-    setNotice("Divisione avviata: nuova entità in stato 'proposto'.");
+    setNotice(t("entitiesPage.splitStarted"));
   }
   // Ordinamento SERVER-SIDE (§6.6): il backend ordina tutte le righe prima
   // della paginazione, quindi l'ordine è corretto su tutte le pagine.
@@ -500,13 +514,13 @@ export default function EntitiesPage() {
 
   // --- caricamento / stato ---
   if (projectsQuery.isLoading) {
-    return <Loading label="Caricamento progetti…" />;
+    return <Loading label={t("projects.loading")} />;
   }
   if (projectsQuery.isError) {
-    return <ErrorNote message="Impossibile caricare i progetti." />;
+    return <ErrorNote message={t("importPage.loadError")} />;
   }
   if (!projectId) {
-    return <ErrorNote message="Nessun progetto disponibile." />;
+    return <ErrorNote message={t("preview.noProjects")} />;
   }
 
   const allTypes = entitiesQuery.data
@@ -534,10 +548,11 @@ export default function EntitiesPage() {
     <div className="mx-auto max-w-7xl">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Entità e glossario</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {t("entitiesPage.title")}
+          </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Tabella filtrabile, menzioni/evidenze, merge/split, forma IT
-            approvata, import/export CSV/TBX (§6.6 / §15.2).
+            {t("entitiesPage.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -547,10 +562,10 @@ export default function EntitiesPage() {
             onClick={onExtract}
             disabled={busy}
           >
-            Estrai entità
+            {t("entitiesPage.extract")}
           </button>
           <label className="btn-secondary">
-            Import CSV/TBX
+            {t("entitiesPage.importBtn")}
             <input
               type="file"
               className="hidden"
@@ -563,11 +578,11 @@ export default function EntitiesPage() {
           </label>
           <select
             className="input"
-            aria-label="Formato esportazione"
+            aria-label={t("entitiesPage.exportAria")}
             onChange={(e) => void onExport(e.target.value as "csv" | "tbx")}
           >
-            <option value="csv">Esporta CSV</option>
-            <option value="tbx">Esporta TBX</option>
+            <option value="csv">{t("entitiesPage.exportCsv")}</option>
+            <option value="tbx">{t("entitiesPage.exportTbx")}</option>
           </select>
         </div>
       </header>
@@ -583,11 +598,11 @@ export default function EntitiesPage() {
       <section className="mt-6" aria-labelledby="capitolo-title">
         <div className="flex items-center justify-between gap-3">
           <h2 id="capitolo-title" className="text-sm font-semibold text-white">
-            Entità per capitolo
+            {t("entitiesPage.chapterTitle")}
           </h2>
           <select
             className="input"
-            aria-label="Seleziona capitolo"
+            aria-label={t("entitiesPage.chapterAria")}
             value={activeChapter ?? ""}
             onChange={(e) => setActiveChapter(e.target.value || null)}
           >
@@ -602,7 +617,9 @@ export default function EntitiesPage() {
         {chapterQuery.data && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="card space-y-1.5">
-              <p className="text-xs text-slate-400">Introdotte</p>
+              <p className="text-xs text-slate-400">
+                {t("entitiesPage.introduced")}
+              </p>
               <p className="text-lg font-bold text-white">
                 {chapterQuery.data.introduced_count}
               </p>
@@ -615,7 +632,9 @@ export default function EntitiesPage() {
               </ul>
             </div>
             <div className="card space-y-1.5">
-              <p className="text-xs text-slate-400">Nuove (delta)</p>
+              <p className="text-xs text-slate-400">
+                {t("entitiesPage.newDelta")}
+              </p>
               <p className="text-lg font-bold text-white">
                 {chapterQuery.data.new_count}
               </p>
@@ -628,7 +647,9 @@ export default function EntitiesPage() {
               </ul>
             </div>
             <div className="card space-y-1.5">
-              <p className="text-xs text-slate-400">Tornate (delta)</p>
+              <p className="text-xs text-slate-400">
+                {t("entitiesPage.returnedDelta")}
+              </p>
               <p className="text-lg font-bold text-white">
                 {chapterQuery.data.returned.length}
               </p>
@@ -647,7 +668,9 @@ export default function EntitiesPage() {
       {/* Tabella filtrabile (§6.6 / AC2) */}
       <section className="mt-6" aria-labelledby="tabella-title">
         <h2 id="tabella-title" className="mb-2 text-sm font-semibold text-white">
-          Entità ({entitiesQuery.data?.total ?? 0})
+          {t("entitiesPage.tableTitle", {
+            n: entitiesQuery.data?.total ?? 0,
+          })}
         </h2>
 
         {/* Filtri */}
@@ -655,90 +678,90 @@ export default function EntitiesPage() {
           <input
             type="search"
             className="input"
-            placeholder="Cerca per nome/alias…"
+            placeholder={t("entitiesPage.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
             className="input"
-            aria-label="Filtro stato"
+            aria-label={t("entitiesPage.statusAria")}
             value={statusFilter ?? ""}
             onChange={(e) => {
               setStatusFilter(e.target.value || null);
               setPage(1);
             }}
           >
-            <option value="">Stato: tutti</option>
+            <option value="">{t("entitiesPage.statusAll")}</option>
             {Object.entries(STATUS_CLASS).map(([k]) => (
               <option key={k} value={k}>
-                {ENTITY_STATUS_LABEL_IT[k] ?? k}
+                {entityStatusLabels[k] ?? k}
               </option>
             ))}
           </select>
           <select
             className="input"
-            aria-label="Filtro tipo"
+            aria-label={t("entitiesPage.typeAria")}
             value={typeFilter ?? ""}
             onChange={(e) => {
               setTypeFilter(e.target.value || null);
               setPage(1);
             }}
           >
-            <option value="">Tipo: tutti</option>
-            {allTypes.map((t) => (
-              <option key={t} value={t}>
-                {ENTITY_TYPE_LABEL_IT[t] ?? t}
+            <option value="">{t("entitiesPage.typeAll")}</option>
+            {allTypes.map((ty) => (
+              <option key={ty} value={ty}>
+                {entityTypeLabels[ty] ?? ty}
               </option>
             ))}
           </select>
           <select
             className="input"
-            aria-label="Filtro genere referenziale"
+            aria-label={t("entitiesPage.genderAria")}
             value={genderFilter ?? ""}
             onChange={(e) => {
               setGenderFilter(e.target.value || null);
               setPage(1);
             }}
           >
-            <option value="">Genere: tutti</option>
+            <option value="">{t("entitiesPage.genderAll")}</option>
             {allGenders.map((g) => (
               <option key={g} value={g}>
-                {REFERENTIAL_GENDER_LABEL_IT[g] ?? g}
+                {referentialGenderLabels[g] ?? g}
               </option>
             ))}
           </select>
           <select
             className="input"
-            aria-label="Filtro numero"
+            aria-label={t("entitiesPage.numberAria")}
             value={numberFilter ?? ""}
             onChange={(e) => {
               setNumberFilter(e.target.value || null);
               setPage(1);
             }}
           >
-            <option value="">Numero: tutti</option>
+            <option value="">{t("entitiesPage.numberAll")}</option>
             {allNumbers.map((n) => (
               <option key={n} value={n}>
-                {GRAMMATICAL_NUMBER_LABEL_IT[n] ?? n}
+                {grammaticalNumberLabels[n] ?? n}
               </option>
             ))}
           </select>
           <select
             className="input"
-            aria-label="Filtro alias"
+            aria-label={t("entitiesPage.aliasAria")}
             value={aliasFilter}
             onChange={(e) => {
               setAliasFilter(e.target.value as "upper" | "lower" | "");
               setPage(1);
             }}
           >
-            <option value="">Alias: tutti</option>
-            <option value="upper">Alias: maiuscoli</option>
-            <option value="lower">Alias: minuscoli</option>
+            <option value="">{t("entitiesPage.aliasAll")}</option>
+            <option value="upper">{t("entitiesPage.aliasUpper")}</option>
+            <option value="lower">{t("entitiesPage.aliasLower")}</option>
           </select>
           <select
             className="input"
-            aria-label="Filtro traduzione"
+            aria-label={t("entitiesPage.translationAria")}
             value={translationFilter}
             onChange={(e) => {
               setTranslationFilter(
@@ -748,25 +771,27 @@ export default function EntitiesPage() {
               setPage(1);
             }}
           >
-            <option value="">Traduzione: tutti</option>
-            <option value="identical">Nome (IT) uguale a Nome (EN)</option>
+            <option value="">{t("entitiesPage.translationAll")}</option>
+            <option value="identical">
+              {t("entitiesPage.translationIdentical")}
+            </option>
             <option value="shares-word">
-              Nome (IT) contiene una parola di Nome (EN)
+              {t("entitiesPage.translationSharesWord")}
             </option>
             <option value="same-as-en-and-alias">
-              Nome (IT) uguale a Nome (EN) e Alias
+              {t("entitiesPage.translationSameAsAlias")}
             </option>
           </select>
           <select
             className="input"
-            aria-label="Filtro capitolo"
+            aria-label={t("entitiesPage.chapterAria2")}
             value={chapterFilter ?? ""}
             onChange={(e) => {
               setChapterFilter(e.target.value || null);
               setPage(1);
             }}
           >
-            <option value="">Capitolo: tutti</option>
+            <option value="">{t("entitiesPage.chapterAll")}</option>
             {chapters.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -788,7 +813,7 @@ export default function EntitiesPage() {
               setPage(1);
             }}
           >
-            Pulisci filtri
+            {t("entitiesPage.clearFilters")}
           </button>
         </div>
 
@@ -802,14 +827,19 @@ export default function EntitiesPage() {
                 onChange={() => void toggleAllPages()}
                 disabled={bulkBusy}
               />
-              Agisci su tutte le pagine
+              {t("entitiesPage.allPages")}
             </label>
             <span className="text-xs text-slate-400">
               {bulkBusy
-                ? "Operazione in corso…"
+                ? t("entitiesPage.bulkBusy")
                 : selectedRows.size > 0
-                ? `${selectedRows.size} entità selezionate${allPagesMode ? " (tutte le pagine)" : ""}`
-                : "Seleziona le entità con i checkbox:"}
+                ? t("entitiesPage.selectedCount", {
+                    n: selectedRows.size,
+                    extra: allPagesMode
+                      ? t("entitiesPage.allPagesExtra")
+                      : "",
+                  })
+                : t("entitiesPage.selectHint")}
             </span>
             <button
               type="button"
@@ -828,8 +858,8 @@ export default function EntitiesPage() {
               }}
             >
               {allPagesMode
-                ? "Approva tutte (tutte le pagine)"
-                : "Approva tutti i selezionati"}
+                ? t("entitiesPage.approveAll")
+                : t("entitiesPage.approveSelected")}
             </button>
             <button
               type="button"
@@ -848,8 +878,8 @@ export default function EntitiesPage() {
               }}
             >
               {allPagesMode
-                ? "Proponi tutte (tutte le pagine)"
-                : "Proponi tutti i selezionati"}
+                ? t("entitiesPage.proposeAll")
+                : t("entitiesPage.proposeSelected")}
             </button>
             <button
               type="button"
@@ -879,8 +909,8 @@ export default function EntitiesPage() {
               }}
             >
               {allPagesMode
-                ? "Traduci Nomi (tutte le pagine)"
-                : "Traduci Nomi"}
+                ? t("entitiesPage.translateNamesAll")
+                : t("entitiesPage.translateNames")}
             </button>
             {selectedRows.size > 0 && !allPagesMode && (
               <button
@@ -888,7 +918,7 @@ export default function EntitiesPage() {
                 className="btn"
                 onClick={() => setSelectedRows(new Set())}
               >
-                Deseleziona tutto
+                {t("entitiesPage.deselectAll")}
               </button>
             )}
           </div>
@@ -903,7 +933,7 @@ export default function EntitiesPage() {
                   <input
                     type="checkbox"
                     className="mr-10"
-                    aria-label="Seleziona tutte le entità mostrate"
+                    aria-label={t("entitiesPage.selectAllAria")}
                     checked={
                       allPagesMode ||
                       (sortedEntities.length > 0 &&
@@ -922,23 +952,27 @@ export default function EntitiesPage() {
                   Select
                 </th>
                 {([
-                  { key: "alias", label: "Alias" },
-                  { key: "name", label: "Nome (EN)" },
-                  { key: "name_it", label: "Nome (IT)" },
-                  { key: "type", label: "Tipo" },
-                  { key: "status", label: "Stato" },
-                  { key: "mentions", label: "Menzioni" },
+                  { key: "alias", label: t("entitiesPage.colAlias") },
+                  { key: "name", label: t("entitiesPage.colName") },
+                  { key: "name_it", label: t("entitiesPage.colNameIt") },
+                  { key: "type", label: t("entitiesPage.colType") },
+                  { key: "status", label: t("entitiesPage.colStatus") },
+                  { key: "mentions", label: t("entitiesPage.colMentions") },
                 ] as { key: SortKey; label: string }[]).map(({ key, label }) => (
                   <th key={key} className="px-3 py-1.5 font-medium">
                     <button
                       type="button"
                       className="flex items-center gap-1 hover:text-white"
                       onClick={() => toggleSort(key)}
-                      aria-label={`Ordina per ${label} ${
-                        sortKey === key
-                          ? sortDir === "asc" ? "crescente" : "decrescente"
-                          : ""
-                      }`}
+                      aria-label={t("entitiesPage.sortAria", {
+                        label,
+                        dir:
+                          sortKey === key
+                            ? sortDir === "asc"
+                              ? t("entitiesPage.sortAsc")
+                              : t("entitiesPage.sortDesc")
+                            : "",
+                      })}
                     >
                       {label}
                       <span className="text-slate-500" aria-hidden="true">
@@ -955,7 +989,7 @@ export default function EntitiesPage() {
               {entitiesQuery.isLoading && (
                 <tr>
                   <td colSpan={7} className="py-6 text-center text-slate-400">
-                    Caricamento entità…
+                    {t("entitiesPage.loadingEntities")}
                   </td>
                 </tr>
               )}
@@ -985,7 +1019,9 @@ export default function EntitiesPage() {
                         <input
                           type="checkbox"
                           className="mr-10"
-                          aria-label={`Seleziona ${e.canonical_source}`}
+                          aria-label={t("entitiesPage.selectRowAria", {
+                            name: e.canonical_source,
+                          })}
                           checked={selectedRows.has(e.id)}
                           onChange={() => toggleRow(e.id)}
                           onClick={(ev) => ev.stopPropagation()}
@@ -998,7 +1034,7 @@ export default function EntitiesPage() {
                         {e.canonical_source}
                         {e.priority === "block_batch" && (
                           <span className="ml-1 badge bg-red-500/20 text-red-200">
-                            blocca batch
+                            {t("entitiesPage.blocksBatch")}
                           </span>
                         )}
                         {e.priority === "warn" && (
@@ -1011,10 +1047,10 @@ export default function EntitiesPage() {
                         {e.canonical_target ?? "-"}
                       </td>
                       <td className="px-3 py-1.5 text-slate-300">
-                        {ENTITY_TYPE_LABEL_IT[e.entity_type] ?? e.entity_type}
+                        {entityTypeLabels[e.entity_type] ?? e.entity_type}
                         {e.referential_gender && (
                           <span className="ml-2 text-xs text-slate-500">
-                            {REFERENTIAL_GENDER_LABEL_IT[e.referential_gender] ??
+                            {referentialGenderLabels[e.referential_gender] ??
                               e.referential_gender}
                           </span>
                         )}
@@ -1023,7 +1059,7 @@ export default function EntitiesPage() {
                         <span
                           className={`badge ${STATUS_CLASS[e.status] ?? "bg-slate-700 text-slate-200"}`}
                         >
-                          {ENTITY_STATUS_LABEL_IT[e.status] ?? e.status}
+                          {entityStatusLabels[e.status] ?? e.status}
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-slate-300">
@@ -1044,11 +1080,13 @@ export default function EntitiesPage() {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              ← Prec
+              {t("entitiesPage.prevPage")}
             </button>
             <span className="text-sm text-slate-400">
-              Pagina {page} di{" "}
-              {Math.ceil(entitiesQuery.data.total / PER_PAGE)}
+              {t("entitiesPage.pageOf", {
+                page,
+                total: Math.ceil(entitiesQuery.data.total / PER_PAGE),
+              })}
             </span>
             <button
               type="button"
@@ -1058,7 +1096,7 @@ export default function EntitiesPage() {
               }
               onClick={() => setPage((p) => p + 1)}
             >
-              Succ →
+              {t("entitiesPage.nextPage")}
             </button>
           </div>
         )}
@@ -1127,6 +1165,23 @@ function SidePanel({
   onSplit: () => Promise<void>;
   allEntities: EntityDto[];
 }) {
+  const { locale, t, dict } = useI18n();
+  const entityStatusLabels = dict.enums.entityStatus as Record<string, string>;
+  const entityTypeLabels = dict.enums.entityType as Record<string, string>;
+  const referentialGenderLabels = dict.enums.referentialGender as Record<
+    string,
+    string
+  >;
+  const italianGenderLabels = dict.enums.italianGender as Record<string, string>;
+  const grammaticalNumberLabels = dict.enums.grammaticalNumber as Record<
+    string,
+    string
+  >;
+  const translationPolicyLabels = dict.enums.translationPolicy as Record<
+    string,
+    string
+  >;
+  const priorityLabels = dict.enums.entityPriority as Record<string, string>;
   const [forbidden, setForbidden] = useState(entity.forbidden_targets.join(";"));
   const [itTarget, setItTarget] = useState(entity.canonical_target ?? "");
   const [mergeTarget, setMergeTarget] = useState("");
@@ -1215,28 +1270,30 @@ function SidePanel({
           <div>
             <h2 className="text-lg font-bold text-white">{entity.canonical_source}</h2>
             <p className="text-xs text-slate-400">
-              {ENTITY_STATUS_LABEL_IT[entity.status] ?? entity.status} ·{" "}
-              {ENTITY_TYPE_LABEL_IT[entity.entity_type] ?? entity.entity_type}
+              {entityStatusLabels[entity.status] ?? entity.status} ·{" "}
+              {entityTypeLabels[entity.entity_type] ?? entity.entity_type}
             </p>
           </div>
           <button
             type="button"
             className="btn-secondary"
             onClick={onClose}
-            aria-label="Chiudi pannello e torna alla tabella"
+            aria-label={t("entitiesPage.closeAria")}
           >
-            Chiudi
+            {t("entitiesPage.close")}
           </button>
         </div>
 
         {/* Forma IT approvata (§6.6) */}
         <div className="mt-4 space-y-1.5">
-          <label className="label" htmlFor="it-target">Forma IT approvata</label>
+          <label className="label" htmlFor="it-target">
+            {t("entitiesPage.itForm")}
+          </label>
           <input
             id="it-target"
             className="input"
             value={itTarget}
-            placeholder="Forma italiana approvata"
+            placeholder={t("entitiesPage.itPlaceholder")}
             onChange={(e) => editDebounced("canonical_target", e.target.value)}
             onBlur={() => flushDebounced("canonical_target")}
           />
@@ -1245,38 +1302,38 @@ function SidePanel({
         {/* Generi, numero, tipo, policy (§6.4) */}
         <div className="mt-4 grid grid-cols-2 gap-4">
           <SelectField
-            label="Tipo entità"
+            label={t("entitiesPage.typeField")}
             value={entity.entity_type}
-            options={Object.keys(ENTITY_TYPE_LABEL_IT)}
-            labels={ENTITY_TYPE_LABEL_IT}
+            options={Object.keys(entityTypeLabels)}
+            labels={entityTypeLabels}
             onChange={(v) => void onField("entity_type", v)}
           />
           <SelectField
-            label="Genere referenziale"
+            label={t("entitiesPage.referentialField")}
             value={entity.referential_gender}
-            options={Object.keys(REFERENTIAL_GENDER_LABEL_IT)}
-            labels={REFERENTIAL_GENDER_LABEL_IT}
+            options={Object.keys(referentialGenderLabels)}
+            labels={referentialGenderLabels}
             onChange={(v) => void onField("referential_gender", v)}
           />
           <SelectField
-            label="Genere gram. IT"
+            label={t("entitiesPage.italianGenderField")}
             value={entity.italian_grammatical_gender}
-            options={Object.keys(ITALIAN_GENDER_LABEL_IT)}
-            labels={ITALIAN_GENDER_LABEL_IT}
+            options={Object.keys(italianGenderLabels)}
+            labels={italianGenderLabels}
             onChange={(v) => void onField("italian_grammatical_gender", v)}
           />
           <SelectField
-            label="Numero"
+            label={t("entitiesPage.numberField")}
             value={entity.grammatical_number}
-            options={Object.keys(GRAMMATICAL_NUMBER_LABEL_IT)}
-            labels={GRAMMATICAL_NUMBER_LABEL_IT}
+            options={Object.keys(grammaticalNumberLabels)}
+            labels={grammaticalNumberLabels}
             onChange={(v) => void onField("grammatical_number", v)}
           />
           <SelectField
-            label="Policy di traduzione"
+            label={t("entitiesPage.policyField")}
             value={entity.translation_policy}
-            options={Object.keys(TRANSLATION_POLICY_LABEL_IT)}
-            labels={TRANSLATION_POLICY_LABEL_IT}
+            options={Object.keys(translationPolicyLabels)}
+            labels={translationPolicyLabels}
             onChange={(v) => void onField("translation_policy", v)}
           />
         </div>
@@ -1291,7 +1348,7 @@ function SidePanel({
                 void onField("never_translate", e.target.checked)
               }
             />
-            Non tradurre mai
+            {t("entitiesPage.neverTranslate")}
           </label>
           <label className="flex items-center gap-1 text-sm text-slate-200">
             <input
@@ -1301,18 +1358,20 @@ function SidePanel({
                 void onField("allow_inflection", e.target.checked)
               }
             />
-            Consenti flessione italiana
+            {t("entitiesPage.allowInflection")}
           </label>
         </div>
 
         {/* Forme vietate (§6.6) */}
         <div className="mt-4 space-y-1.5">
-          <label className="label" htmlFor="forbidden">Forme vietate</label>
+          <label className="label" htmlFor="forbidden">
+            {t("entitiesPage.forbiddenLabel")}
+          </label>
           <input
             id="forbidden"
             className="input"
             value={forbidden}
-            placeholder="Separate da ; (forme vietate)"
+            placeholder={t("entitiesPage.forbiddenPlaceholder")}
             onChange={(e) => editDebounced("forbidden_targets", e.target.value)}
             onBlur={() => flushDebounced("forbidden_targets")}
           />
@@ -1320,7 +1379,9 @@ function SidePanel({
 
         {/* Priorità (§6.6) */}
         <div className="mt-4 space-y-1.5">
-          <label className="label" htmlFor="priority">Priorità</label>
+          <label className="label" htmlFor="priority">
+            {t("entitiesPage.priorityLabel")}
+          </label>
           <select
             id="priority"
             className="input"
@@ -1332,11 +1393,7 @@ function SidePanel({
             <option value="">-</option>
             {Object.entries(PRIORITY_CLASS).map(([k]) => (
               <option key={k} value={k}>
-                {PRIORITY_CLASS[k] === "block_batch"
-                  ? "Blocca batch"
-                  : PRIORITY_CLASS[k] === "warn"
-                    ? "Warn"
-                    : "Normale"}
+                {priorityLabels[k] ?? k}
               </option>
             ))}
           </select>
@@ -1344,7 +1401,7 @@ function SidePanel({
 
         {/* Alias (§6.5) */}
         <div className="mt-4 space-y-1.5">
-          <label className="label">Alias</label>
+          <label className="label">{t("entitiesPage.aliasLabel")}</label>
           <div className="flex flex-wrap gap-1">
             {entity.aliases.map((a) => (
               <span
@@ -1356,7 +1413,7 @@ function SidePanel({
                   <button
                     type="button"
                     className="text-slate-400 hover:text-white"
-                    title="Rimuovi alias"
+                    title={t("entitiesPage.removeAlias")}
                     onClick={() => void onRemoveAlias(a)}
                   >
                     ×
@@ -1369,10 +1426,10 @@ function SidePanel({
             <input
               id="new-alias"
               className="input flex-1"
-              placeholder="Nuovo alias"
+              placeholder={t("entitiesPage.newAliasPlaceholder")}
             />
             <button type="button" className="btn-secondary" onClick={onAddAlias}>
-              Aggiungi
+              {t("entitiesPage.add")}
             </button>
           </div>
         </div>
@@ -1380,14 +1437,14 @@ function SidePanel({
         {/* Merge / split (§15.2 / §6.6) */}
         <div className="mt-4 space-y-3">
           <div className="space-y-1.5">
-            <label className="label">Unisci (merge)</label>
+            <label className="label">{t("entitiesPage.mergeLabel")}</label>
             <div className="flex gap-1">
               <select
                 className="input flex-1"
                 value={mergeTarget}
                 onChange={(e) => setMergeTarget(e.target.value)}
               >
-                <option value="">Seleziona entità da unire…</option>
+                <option value="">{t("entitiesPage.mergePlaceholder")}</option>
                 {otherEntities
                   .filter((e) => e.status !== "merged")
                   .map((e) => (
@@ -1402,29 +1459,29 @@ function SidePanel({
                 disabled={!mergeTarget}
                 onClick={() => void onMerge(mergeTarget)}
               >
-                Unisci
+                {t("entitiesPage.mergeBtn")}
               </button>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="label">Dividi (split)</label>
+            <label className="label">{t("entitiesPage.splitLabel")}</label>
             <input
               id="split-alias"
               className="input"
-              placeholder="Alias o forma da dividere"
+              placeholder={t("entitiesPage.splitAliasPlaceholder")}
             />
             <input
               id="split-target"
               className="input"
-              placeholder="Forma IT (opzionale)"
+              placeholder={t("entitiesPage.splitTargetPlaceholder")}
             />
             <button
               type="button"
               className="btn-secondary"
               onClick={onSplit}
             >
-              Dividi
+              {t("entitiesPage.splitBtn")}
             </button>
           </div>
         </div>
@@ -1432,18 +1489,19 @@ function SidePanel({
         {/* Evidenze (§15.2 / §6.6) */}
         <div className="mt-4 space-y-3">
           <h3 className="text-sm font-semibold text-white">
-            Evidenze ({evidence?.length ?? 0})
+            {t("entitiesPage.evidenceTitle", { n: evidence?.length ?? 0 })}
           </h3>
           {evidence && evidence.length === 0 && (
             <p className="text-sm text-slate-400">
-              Nessuna menzione registrata.
+              {t("entitiesPage.noEvidence")}
             </p>
           )}
           {evidence &&
             evidence.map((ev) => (
               <div key={ev.id} className="rounded border border-slate-800 bg-slate-800/40 p-20">
                 <p className="text-xs text-slate-400">
-                  P. {ev.page_number ?? "?"} · {ev.evidence_type ?? "?"}
+                  {t("entitiesPage.pageAbbr", { n: ev.page_number ?? "?" })} ·{" "}
+                  {ev.evidence_type ?? "?"}
                   {ev.chapter_id && (
                     <span className="ml-1">
                       · {chapters.find((c) => c.id === ev.chapter_id)?.label ?? ev.chapter_id}
@@ -1452,9 +1510,9 @@ function SidePanel({
                   {ev.ocr_suspect && (
                     <span
                       className="badge ml-1 bg-red-500/20 text-red-200"
-                      title="Pagina/segmento marcato come OCR sospetto (PRD §5.2/§13): verificare la trascrizione."
+                      title={t("entitiesPage.ocrTitle")}
                     >
-                      OCR sospetto
+                      {t("importPage.ocrSuspect")}
                     </span>
                   )}
                 </p>
@@ -1478,12 +1536,17 @@ function SidePanel({
         {/* Storico (§15.4) */}
         {versions && versions.length > 0 && (
           <div className="mt-4 space-y-1.5">
-            <h3 className="text-sm font-semibold text-white">Storico</h3>
+            <h3 className="text-sm font-semibold text-white">
+              {t("entitiesPage.history")}
+            </h3>
             <ul className="space-y-10">
               {versions.map((v) => (
                 <li key={v.version} className="text-xs text-slate-400">
                   v{v.version} · {v.action}
-                  {v.created_at && ` · ${new Date(v.created_at).toLocaleString("it-IT")}`}
+                  {v.created_at &&
+                    ` · ${new Date(v.created_at).toLocaleString(
+                      locale === "it" ? "it-IT" : "en-GB"
+                    )}`}
                 </li>
               ))}
             </ul>
