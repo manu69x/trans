@@ -472,6 +472,25 @@ export const it = {
     description:
       "Job, chiamate LLM, snapshot, azioni utente e differenze tra versioni (PRD §11.1, §13.1).",
   },
+  bookCheck: {
+    title: "Verifica Libro",
+    noProjects: "Nessun progetto disponibile.",
+    originalBadge: "ORIGINALE",
+    cloneBadge: "TRADOTTO (clone)",
+    pageAlt: "{title} pagina {n}",
+    regenerate: "↻ Rigenera clone",
+    regenerateTitle:
+      "Rigenera il clone con le ultime traduzioni (la cache costa ~45s)",
+    pagesInfo: "Originale: {n} pagine · il clone segue la distribuzione dei capitoli (rapporto ~1:1)",
+    analyzing: "Analizzo i PDF…",
+    pdfError: "Impossibile leggere il PDF originale (esegui prima il rileva struttura).",
+    mainBar: "MAIN (sfoglia entrambe)",
+    mainHint: "usa anche le frecce ← → della tastiera",
+    origPanel: "LIBRO ORIGINALE",
+    origSubtitle: "PDF importato",
+    clonePanel: "LIBRO TRADOTTO",
+    cloneSubtitle: "clone PDF",
+  },
   info: {
     title: "Info — come funziona Trans",
     intro:

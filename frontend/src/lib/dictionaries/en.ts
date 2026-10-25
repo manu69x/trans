@@ -473,6 +473,25 @@ export const en: ITDict = {
     description:
       "Jobs, LLM calls, snapshots, user actions and version differences (PRD §11.1, §13.1).",
   },
+  bookCheck: {
+    title: "Book Check",
+    noProjects: "No projects available.",
+    originalBadge: "ORIGINAL",
+    cloneBadge: "TRANSLATED (clone)",
+    pageAlt: "{title} page {n}",
+    regenerate: "↻ Regenerate clone",
+    regenerateTitle:
+      "Regenerates the clone with the latest translations (cache costs ~45s)",
+    pagesInfo: "Original: {n} pages · the clone follows the chapter distribution (~1:1 ratio)",
+    analyzing: "Analyzing the PDFs…",
+    pdfError: "Could not read the original PDF (run structure detection first).",
+    mainBar: "MAIN (browse both)",
+    mainHint: "the ← → arrow keys work too",
+    origPanel: "ORIGINAL BOOK",
+    origSubtitle: "imported PDF",
+    clonePanel: "TRANSLATED BOOK",
+    cloneSubtitle: "PDF clone",
+  },
   info: {
     title: "Info — how Trans works",
     intro:
