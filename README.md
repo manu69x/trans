@@ -15,8 +15,9 @@ LM Studio, ...).
 > **Status: alpha (`v0.1.0-alpha`)**. The platform is in daily use for real
 > EN→IT literary work and is feature-complete for the single-user workflow,
 > but APIs, the DB schema and the UI will still change. The web UI is
-> currently in **Italian** (the tool targets Italian literary translators);
-> an English UI is planned. Code comments are a mix of English and Italian.
+> **bilingual (Italian/English)**: the locale is auto-detected on first
+> visit and can be switched at any time from the sidebar. Code comments are
+> a mix of English and Italian.
 
 | The CAT workbench — translate, review, approve | Token-budgeted segmentation |
 |---|---|
@@ -54,7 +55,7 @@ LM Studio, ...).
 ## Architecture at a glance
 
 ```
-            browser (Next.js UI, Italian)
+            browser (Next.js UI, IT/EN)
                     │  same-origin /api/v1/* (no CORS)
                     ▼
         ┌───────────────────────┐     /api/gateway/* proxy
