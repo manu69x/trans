@@ -12,7 +12,7 @@ data leaves your network. Inference goes exclusively through an
 OpenAI-compatible **LLM Gateway** you control (llama.cpp, llama-swap, vLLM,
 LM Studio, ...).
 
-> **Status: alpha (`v0.1.0-alpha`)**. The platform is in daily use for real
+> **Status: alpha (`v0.2.0-alpha`)**. The platform is in daily use for real
 > EN→IT literary work and is feature-complete for the single-user workflow,
 > but APIs, the DB schema and the UI will still change. The web UI is
 > **bilingual (Italian/English)**: the locale is auto-detected on first
