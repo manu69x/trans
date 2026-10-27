@@ -36,7 +36,7 @@ export const it = {
     changeLanguage: "Cambia lingua",
   },
   auth: {
-    title: "Accesso a Trans",
+    title: "Accesso a Free Book Translation",
     subtitle: "Piattaforma locale di traduzione letteraria EN→IT",
     email: "Email",
     password: "Password",
@@ -492,7 +492,7 @@ export const it = {
     cloneSubtitle: "clone PDF",
   },
   info: {
-    title: "Info — come funziona Trans",
+    title: "Info — come funziona Free Book Translation",
     intro:
       "Guida di riferimento alla piattaforma locale di traduzione letteraria EN→IT. Tutto gira sulla rete locale: nessun dato del manoscritto esce dalla macchina e l'inferenza passa solo dal LLM Gateway.",
     tocLabel: "Indice",

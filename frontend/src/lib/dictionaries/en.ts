@@ -38,7 +38,7 @@ export const en: ITDict = {
     changeLanguage: "Change language",
   },
   auth: {
-    title: "Sign in to Trans",
+    title: "Sign in to Free Book Translation",
     subtitle: "Local EN→IT literary translation platform",
     email: "Email",
     password: "Password",
@@ -493,7 +493,7 @@ export const en: ITDict = {
     cloneSubtitle: "PDF clone",
   },
   info: {
-    title: "Info — how Trans works",
+    title: "Info — how Free Book Translation works",
     intro:
       "Reference guide to the local EN→IT literary translation platform. Everything runs on the local network: no manuscript data ever leaves the machine and inference goes only through the LLM Gateway.",
     tocLabel: "Contents",

@@ -68,8 +68,8 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-slate-800 bg-slate-900/40">
       <div className="border-b border-slate-800 px-4 py-4">
-        <Link href="/" className="text-lg font-bold tracking-tight">
-          Trans
+        <Link href="/" className="text-lg font-bold leading-tight tracking-tight">
+          Free Book Translation
         </Link>
         <p className="mt-0.5 text-xs text-slate-400">{t("sidebar.tagline")}</p>
       </div>

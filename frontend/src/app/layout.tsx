@@ -7,7 +7,7 @@ import Providers from "./providers";
 // Language-neutral: la metadata è lato server, mentre il locale è scelto
 // dal client (localStorage / navigator.language) nel LocaleProvider.
 export const metadata: Metadata = {
-  title: "Trans — EN→IT literary translation",
+  title: "Free Book Translation — EN→IT literary translation",
   description: "Local-first literary translation platform (EN→IT).",
 };
 

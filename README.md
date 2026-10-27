@@ -1,6 +1,6 @@
-# Trans — local literary translation platform (EN → IT)
+# Free Book Translation — local literary translation platform (EN → IT)
 
-Trans is a **local-first, LLM-assisted CAT (Computer-Assisted Translation)
+Free Book Translation is a **local-first, LLM-assisted CAT (Computer-Assisted Translation)
 workbench for literary texts**: upload an English novel or essay, let the
 platform structure it into chapters and segments, build a controlled
 glossary and a translation memory, translate block-by-block with your own

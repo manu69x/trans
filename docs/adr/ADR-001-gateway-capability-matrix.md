@@ -17,7 +17,7 @@ OpenAI-compatible proxy with on-demand model loading on consumer GPUs).
 
 ## 2. Decision
 
-Trans targets **any OpenAI-compatible local gateway** and adapts to what it
+Free Book Translation targets **any OpenAI-compatible local gateway** and adapts to what it
 actually exposes. The adapter assumes the lowest common denominator
 verified below and degrades gracefully when optional fields are missing.
 

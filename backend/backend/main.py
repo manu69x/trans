@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
         yield
         engine.dispose()
 
-    app = FastAPI(title="Trans", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Free Book Translation", version="0.1.0", lifespan=lifespan)
     # CORS (local-only): il browser può chiamare il backend direttamente per
     # le richieste LUNGHE (azioni massive LLM) che il proxy rewrite di Next
     # tronca a ~30s ("socket hang up"). Solo origin locali del LAN/host.

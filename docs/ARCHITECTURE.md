@@ -1,6 +1,6 @@
 # Architecture
 
-How Trans works end to end: services, data model, pipelines and the module
+How Free Book Translation works end to end: services, data model, pipelines and the module
 map. The product spec behind all of this is the [PRD](PRD.md); the decision
 records in [adr/](adr/README.md) explain the *why* behind the load-bearing
 choices.
