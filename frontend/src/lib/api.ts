@@ -1,5 +1,5 @@
 /**
- * Client API verso il backend Trans (T09) e il LLM Gateway.
+ * Client API verso il backend Trans (T09) e il Gateway Proxy.
  *
  * Il browser parla solo con la propria origine (PRD §13.1 local_only):
  * `/api/v1/*` è rewritato dal server Next verso il backend FastAPI e
@@ -969,13 +969,16 @@ export interface EditorSegment {
   source_flags: Record<string, unknown>;
   has_markup: boolean;
   page: number | null;
-  /** Verifica QE §10.2-bis: p(yes) "Is this text written in Italian?". */
-  is_italian: number | null;
-  /** Verifica QE §10.2-bis: p(yes) sulla coppia EN->IT (testo ridotto). */
+  /** Verifica QE §10.2-bis: p(yes) "Is this text written in <target>?".
+   * (Multilingua 2026-10-29: prima ``is_italian``, coppia EN→IT cablata.) */
+  is_target_lang: number | null;
+  /** Verifica QE §10.2-bis: p(yes) sulla coppia source->target (ridotto). */
   is_translated: number | null;
-  /** Verifica QE §10.2-bis: p(yes) "Is this text written in English?". */
-  is_english: number | null;
-  /** DIFF = is_italian - is_english (<= 0: bozza probabilmente inglese). */
+  /** Verifica QE §10.2-bis: p(yes) "Is this text written in <source>?".
+   * (Prima ``is_english``: bozza non tradotta.) */
+  is_source_lang: number | null;
+  /** DIFF = is_target_lang - is_source_lang (<= 0: bozza probabilmente
+   * rimasta nella lingua di partenza). */
   qe_diff: number | null;
   /** QA issues critici non risolti su questo segmento. */
   qa_critical: number;
@@ -1043,8 +1046,8 @@ export async function bulkSegmentStatus(
 
 /**
  * POST /projects/{id}/verify-translations — avvia la verifica QE massiva
- * (Open-QE DeBERTa-v3-large su GPU0): per ogni segmento tradotto calcola
- * is_italian e is_translated (§10.2-bis).
+ * (rilevatore Spark su GPU0): per ogni segmento tradotto calcola
+ * is_target_lang e is_translated (§10.2-bis).
  */
 export async function verifyTranslations(
   projectId: string,
@@ -1405,11 +1408,11 @@ export async function rollbackCleaning(
   return handle(res);
 }
 
-// --- LLM Gateway (matrice capability §8.1) --------------------------------
+// --- Gateway Proxy (matrice capability §8.1) --------------------------------
 
 /**
  * Matrice delle capability (§8.1 / ADR-001 §3.3) popolata dinamicamente da
- * LLM Gateway: nessun nome hardcodato. Via `/api/v1/gateway/models`
+ * Gateway Proxy: nessun nome hardcodato. Via `/api/v1/gateway/models`
  * (rewritato sul backend FastAPI, che a sua volta parla con Gateway).
  *
  * Se Gateway è irraggiungibile la richiesta fallisce: il caller decide come
@@ -1535,7 +1538,7 @@ export async function updateEntity(
     canonical_target?: string | null;
     entity_type?: string | null;
     referential_gender?: string | null;
-    italian_grammatical_gender?: string | null;
+    target_grammatical_gender?: string | null;
     grammatical_number?: string | null;
     translation_policy?: string | null;
     definition?: string | null;

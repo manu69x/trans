@@ -119,7 +119,7 @@ async def test_ac1_prompt_within_budget_and_snapshots(client, chapter):
                   genre="fantascientifica", chapter=chapter)
     r = await client.post(f"/api/v1/projects/{pid}/glossary", json={
         "source_term": "John", "term_type": "PERSON", "preferred": True,
-        "status": "approved", "grammatical_gender_it": "masculine",
+        "status": "approved", "grammatical_gender_target": "masculine",
         "grammatical_number": "singular", "target_term": "John"})
     assert r.status_code == 201, r.text
     tid = r.json()["id"]
@@ -260,7 +260,7 @@ async def test_ac3_conflict_exposed(client, chapter):
     r = await client.post(f"/api/v1/projects/{pid}/glossary", json={
         "source_term": "sword", "term_type": "OBJECT_ARTIFACT",
         "preferred": True, "status": "approved",
-        "grammatical_gender_it": "feminine", "grammatical_number": "singular",
+        "grammatical_gender_target": "feminine", "grammatical_number": "singular",
         "target_term": "spada",
         "forbidden_targets": ["lama"],
         "usage_notes": "the magic sword"})
@@ -292,7 +292,7 @@ async def test_ac3_no_conflict_when_no_style_guide(client, chapter):
     r = await client.post(f"/api/v1/projects/{pid}/glossary", json={
         "source_term": "sword", "term_type": "OBJECT_ARTIFACT",
         "preferred": True, "status": "approved",
-        "grammatical_gender_it": "feminine", "grammatical_number": "singular",
+        "grammatical_gender_target": "feminine", "grammatical_number": "singular",
         "target_term": "spada"})
     assert r.status_code == 201, r.text
     r = await client.post(f"/api/v1/projects/{pid}/translation/planner", json={

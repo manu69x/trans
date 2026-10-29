@@ -60,7 +60,9 @@ router = APIRouter(prefix="/projects", tags=["translation"])
 
 
 # --- validation sets --------------------------------------------------------
-_IT_GENDERS = {"masculine", "feminine", "common", "variable", "not_applicable"}
+# Multilingua 2026-10-29 (Tier 1): "neuter" per il tedesco.
+_TARGET_GENDERS = {"masculine", "feminine", "neuter", "common", "variable",
+                   "not_applicable"}
 _NUMBERS = {"singular", "plural", "invariant", "collective", "unknown"}
 _STATUSES = {"proposed", "verified", "approved", "deprecated", "archived"}
 
@@ -365,7 +367,7 @@ async def get_tm_snapshot(
 
 
 # --- the planner ------------------------------------------------------------
-def _default_style_guide(genre: str | None) -> str:
+def _default_style_guide(genre: str | None, target_lang: str = "it") -> str:
     """A minimal §9.2-derived style guide so the conflict detector has input.
 
     In the real product this comes from the project's approved style guide;
@@ -385,7 +387,10 @@ def _default_style_guide(genre: str | None) -> str:
     key = (genre or "").lower()
     if key in _MATRIX:
         return _MATRIX[key]
-    return "Traduci con fedeltà semantica e naturalezza letteraria italiana."
+    from .languages import target_adjective_it
+    adjective = target_adjective_it(target_lang)
+    return (f"Traduci con fedeltà semantica e naturalezza letteraria "
+            f"{adjective}.")
 
 
 _OUTPUT_SCHEMA = """{
@@ -494,8 +499,8 @@ async def translation_planner(
             "type": t.term_type,
             "forbidden_targets": list(t.forbidden_targets or []),
             "policy": "not_translate" if t.preferred else "translate",
-            "italian_grammatical_gender": t.grammatical_gender_it,
-            "italian_grammatical_number": t.grammatical_number,
+            "target_grammatical_gender": t.grammatical_gender_target,
+            "grammatical_number": t.grammatical_number,
             "notes": t.usage_notes,
             "priority": "high" if t.preferred else "normal",
         })
@@ -513,7 +518,7 @@ async def translation_planner(
             "source": e.canonical_source,
             "target": e.canonical_target,
             "type": e.entity_type,
-            "italian_grammatical_gender": e.italian_grammatical_gender,
+            "target_grammatical_gender": e.target_grammatical_gender,
             "grammatical_number": e.grammatical_number,
             "aliases": aliases,
             "policy": e.translation_policy,
@@ -523,7 +528,10 @@ async def translation_planner(
         })
 
     # --- style guide (§9.3 conflict input) --------------------------------
-    style_guide = payload.style_guide or _default_style_guide(project.genre_profile)
+    style_guide = (payload.style_guide
+                   or _default_style_guide(project.genre_profile,
+                                           getattr(project, "target_language",
+                                                   None) or "it"))
 
     # --- assemble the block plan (§10.1 steps 1-3) ------------------------
     budget = TokenBudget(max_total=payload.max_total_tokens)
@@ -539,6 +547,8 @@ async def translation_planner(
         style_guide=style_guide,
         snapshot_ids=payload.snapshot_ids,
         output_schema=_OUTPUT_SCHEMA,
+        source_lang=getattr(project, "source_language", None) or "en",
+        target_lang=getattr(project, "target_language", None) or "it",
     )
     # surface the rejected TM conflicts alongside the glossary/style ones.
     plan.conflicts.extend(rejected_conflicts)

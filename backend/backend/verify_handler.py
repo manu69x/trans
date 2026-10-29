@@ -1,17 +1,21 @@
-"""Bulk translation verification with the QE service (PRD §10.2-bis).
+"""Verifica massiva delle traduzioni con Open-QE (§10.2-bis, 2026-09-22).
 
-For every segment that has a translation (draft or approved) the QE
-endpoint answers closed questions and Trans stores the probabilities in:
+Per ogni segmento con traduzione (bozza o approvata) il modello Open-QE
+DeBERTa-v3-large (GPU0 via llama-swap, ADR-008 pattern) risponde a domande
+chiuse e Trans ne memorizza le probabilita' sui campi:
 
-* ``is_italian``    -- p(yes) to "Is this text written in Italian?"
-* ``is_translated`` -- p(yes) to "Is the following text the Italian
+* ``is_target_lang`` -- p(yes) a  "Is this text written in <target>?"
+  (prima ``is_italian``: fino al multilingua 2026-10-29 la coppia era
+  cablata EN→IT)
+* ``is_translated``  -- p(yes) a  "Is the following text the <target>
   translation of this text?"
-* ``is_english``    -- p(yes) to "Is this text written in English?"
+* ``is_source_lang`` -- p(yes) a  "Is this text written in <source>?"
+  (prima ``is_english``)
 
-The analysis uses a reduced text (first + last sentence, period as the
-delimiter: :func:`head_tail_sentences`), never the whole segment.
+L'analisi usa il testo ridotto (prima + ultima frase, delimitatore punto:
+:func:`head_tail_sentences`), non il segmento intero.
 
-Verification never modifies the text: it only measures and records.
+La verifica non modifica mai il testo: solo misura e registra.
 """
 from __future__ import annotations
 
@@ -20,18 +24,19 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from .config import QE_BASE_URL  # noqa: F401 (documentazione della catena)
 from .qe_client import verify_segment_qe
 from .models import Job, TranslationUnit
 
 
 def head_tail_sentences(text: str) -> str:
-    """The reduced text passed to the QE service: first + last sentence.
+    """Il testo ridotto passato a QE: prima + ultima frase.
 
-    The sentence delimiter is the period. If the text contains at least
-    two sentences the first and last are used (joined with a space); with
-    a single sentence or no periods the whole segment is passed. The same
-    rule is implemented in the frontend (``lib/qe.ts``) so the UI can
-    highlight exactly the text that was analysed.
+    Regola (2026-09-23): il delimitatore di frase e' il punto. Se il testo
+    contiene almeno due frasi si usano la prima e l'ultima (giustapposte con
+    uno spazio); con una sola frase o senza punti si prende tutto il segmento.
+    La stessa regola e' implementata nel frontend (lib/qe.ts) per
+    evidenziare esattamente il testo analizzato.
     """
     t = (text or "").strip()
     if not t:
@@ -45,25 +50,26 @@ def head_tail_sentences(text: str) -> str:
 
 
 def run_verify_translations(db: Session, job: Job) -> None:
-    """QE verification for every translated segment of the project.
+    """Verifica QE per ogni segmento tradotto del progetto (§10.2-bis).
 
-    For each segment with a ``target_text`` fills:
-
-    * ``is_italian``    -- p(yes) to "Is this text written in Italian?"
-    * ``is_translated`` -- p(yes) to "Is the following text the Italian
+    Per ogni segmento con ``target_text`` compila:
+    * ``is_target_lang`` -- p(yes) a  "Is this text written in <target>?"
+      (multilingua 2026-10-29: prima ``is_italian``, coppia cablata EN→IT)
+    * ``is_translated``  -- p(yes) a  "Is the following text the <target>
       translation of this text?"
-    * ``is_english``    -- p(yes) to "Is this text written in English?"
+    * ``is_source_lang`` -- p(yes) a  "Is this text written in <source>?"
 
-    The whole segment is never sent (small context budget on the QE
-    endpoint): source and target are reduced to first + last sentence;
-    a segment with no further sentences is passed whole.
+    L'analisi non usa mai il segmento intero (limite 512 token del modello):
+    per sorgente e target si passa prima + ultima frase, con il punto come
+    delimitatore; un segmento senza piu' frasi viene passato intero.
     """
     from .models import Project
     from .qe_client import health as qe_health
 
     project_id = job.payload["project_id"]
     project = db.get(Project, project_id)
-    _ = project  # loaded for symmetry with the other runners
+    source_lang = getattr(project, "source_language", None) or "en"
+    target_lang = getattr(project, "target_language", None) or "it"
 
     try:
         info = qe_health()
@@ -75,7 +81,7 @@ def run_verify_translations(db: Session, job: Job) -> None:
         TranslationUnit.project_id == project_id)
     wanted = job.payload.get("segment_ids") or []
     if wanted:
-        # Targeted verification: only the selected segments (bulk action).
+        # Verifica mirata: solo i segmenti selezionati (tasto bulk frontend).
         units = units.filter(TranslationUnit.id.in_(wanted))
     units = units.filter(
         TranslationUnit.target_text.isnot(None),
@@ -90,26 +96,30 @@ def run_verify_translations(db: Session, job: Job) -> None:
         source_rid = head_tail_sentences(u.source_text or "")
         target_rid = head_tail_sentences(u.target_text or "")
         try:
-            # Retry with backoff: the first attempt may hit the cold-load
-            # window of the QE model (502/timeout while the server loads).
+            # Retry con backoff: il primo tentativo puo' prendere il
+            # cold-load del modello Spark (502 di llama-swap mentre
+            # llama-server si carica, incidente 2026-10-01 ore ~4: la
+            # verifica "completed" con errors=1 e punteggi mai aggiornati).
             res = None
             for attempt in range(3):
                 try:
-                    res = verify_segment_qe(source_rid, target_rid)
+                    res = verify_segment_qe(
+                        source_rid, target_rid,
+                        source_lang=source_lang, target_lang=target_lang)
                     break
-                except Exception:  # noqa: BLE001 - retry on 502/timeout
+                except Exception:  # noqa: BLE001 - riprova sul 502/timeout
                     if attempt < 2:
                         time.sleep(15 * (attempt + 1))
             if res is None:
-                raise RuntimeError("QE verifier failed after 3 attempts")
-            u.is_italian = float(res["is_italian"])
+                raise RuntimeError("spark verifier failed after 3 attempts")
+            u.is_target_lang = float(res["is_target_lang"])
             u.is_translated = float(res["is_translated"])
-            u.is_english = float(res["is_english"])
+            u.is_source_lang = float(res["is_source_lang"])
             done += 1
         except Exception as exc:  # noqa: BLE001
-            # A service error must NOT wipe a previous verification: the
-            # existing values stay until a new successful call overwrites
-            # them.
+            # Un errore del servizio NON deve azzerare una verifica
+            # precedente: i valori esistenti restano finche' una nuova
+            # chiamata riuscita non li sovrascrive.
             errors += 1
             if errors <= 3:
                 job.result = {**(job.result or {}), "last_error": str(exc)[:200]}
@@ -119,14 +129,18 @@ def run_verify_translations(db: Session, job: Job) -> None:
         if idx % 5 == 0 or idx == total:
             db.commit()
     if errors and done == 0:
-        # Zero verified segments = the service was unreachable: the job
-        # MUST end up failed, otherwise the UI shows "completed" and the
-        # user cannot tell why the scores never changed.
+        # Nessun segmento verificato = il servizio non era raggiungibile:
+        # il job DEVE risultare failed, altrimenti l'UI mostra "completed"
+        # e l'utente non capisce perche' i punteggi non cambiano.
         job.status = "failed"
-        job.error = ("QE service unavailable: no segment verified "
-                     f"out of {total} (last result: {str(job.result)[:300]})")
+        job.error = ("verifica QE non disponibile: nessun segmento verificato "
+                     f"su {total} (ultime risposta: {str(job.result)[:300]})")
         db.commit()
         return
     job.result = {**(job.result or {}),
                   "verify_done": done, "verify_total": total,
                   "verify_errors": errors}
+
+
+def _qe_health_unused():
+    return None

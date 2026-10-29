@@ -71,7 +71,9 @@ from .scheduler import get_scheduler_from
 router = APIRouter(prefix="/projects", tags=["entities"])
 
 _GENDERS = {"male", "female", "nonbinary", "mixed", "unknown", "not_applicable"}
-_IT_GENDERS = {"masculine", "feminine", "common", "variable", "not_applicable"}
+# Multilingua 2026-10-29 (Tier 1): "neuter" per il tedesco.
+_TARGET_GENDERS = {"masculine", "feminine", "neuter", "common", "variable",
+                   "not_applicable"}
 _NUMBERS = {"singular", "plural", "invariant", "collective", "unknown"}
 _POLICIES = {"keep_source", "translate", "transliterate", "contextual",
              "undecided"}
@@ -158,7 +160,7 @@ def _entity_summary(db: Session, entity: Entity) -> dict:
         "status": entity.status,
         "referential_gender": entity.referential_gender,
         "referential_gender_evidence": entity.referential_gender_evidence,
-        "italian_grammatical_gender": entity.italian_grammatical_gender,
+        "target_grammatical_gender": entity.target_grammatical_gender,
         "grammatical_number": entity.grammatical_number,
         "translation_policy": entity.translation_policy,
         "definition": entity.definition,
@@ -269,6 +271,7 @@ async def import_entities(
     _get_project(db, project_id)
     data = await file.read()
     text = data.decode("utf-8", errors="replace")
+    project = _get_project(db, project_id)
 
     if fmt == "auto":
         fname = (file.filename or "").lower()
@@ -280,7 +283,8 @@ async def import_entities(
     if fmt == "csv":
         entities, errors = import_csv(text)
     elif fmt == "tbx":
-        entities, errors = import_tbx(text)
+        entities, errors = import_tbx(
+            text, getattr(project, "target_language", None) or "it")
     else:
         raise HTTPException(status_code=422, detail=f"unknown format {fmt!r}")
 
@@ -294,8 +298,12 @@ async def import_entities(
             entity_type=e["entity_type"],
             referential_gender=e["referential_gender"] or "unknown",
             referential_gender_evidence=e["referential_gender_evidence"],
-            italian_grammatical_gender=e["italian_grammatical_gender"]
-            or "not_applicable",
+            # Multilingua 2026-10-29: payload legacy con nome italiano
+            # ancora accettato in ingresso.
+            target_grammatical_gender=(
+                e.get("target_grammatical_gender")
+                or e.get("italian_grammatical_gender")
+                or "not_applicable"),
             grammatical_number=e["grammatical_number"] or "unknown",
             translation_policy=e["translation_policy"] or "undecided",
             status=e["status"],
@@ -505,7 +513,7 @@ async def translate_entity_names(
     Se il modello segnala che il nome NON è traducibile (la forma inglese si
     usa identicamente in italiano), ``canonical_target`` resta **vuoto**.
     """
-    from .gateway_http import GatewayInvalidJSON, GatewayUnavailable, GatewayClient
+    from .llm_gateway import GatewayInvalidJSON, GatewayUnavailable, GatewayClient
     from .config import DEFAULT_TRANSLATION_MODEL
 
     project = _get_project(db, project_id)
@@ -545,17 +553,27 @@ async def translate_entity_names(
         listing = "\n".join(
             f"{key}. {e.canonical_source}" for key, e in numbered.items()
         )
-        # NOTA (misurato): translategemma traduce in italiano SOLO quando
-        # l'istruzione "Translate to Italian" è nel USER message — con un
-        # system message in italiano produce un adattamento inglese.
+        # NOTA (misurato): translategemma traduce nella lingua target SOLO
+        # quando l'istruzione "Translate to <target>" è nel USER message —
+        # con un system message in italiano produce un adattamento inglese.
+        # Multilingua 2026-10-29: la coppia arriva dal progetto (Tier 1:
+        # source sempre en); la chiave JSON di risposta è il codice target.
+        source_lang = getattr(project, "source_language", None) or "en"
+        target_lang = getattr(project, "target_language", None) or "it"
+        from .languages import language_name, target_adjective_it
+        tgt_name = language_name(target_lang)
+        tgt_adj = target_adjective_it(target_lang)
+        src_name = language_name(source_lang)
+        tgt_code = target_lang
         system_prompt = "Respond ONLY with valid JSON."
         user_prompt = (
-            "Translate to Italian (literary EN->IT), keeping the rendering "
-            "used in Italian editions (transliteration/adaptation when it "
-            "exists). For each numbered item return the Italian rendering; "
-            'use "it": null only if the text is identical in Italian '
+            f"Translate to {tgt_name} (literary {src_name}->{tgt_name}), "
+            "keeping the rendering "
+            f"used in {tgt_adj} editions (transliteration/adaptation when it "
+            f"exists). For each numbered item return the {tgt_adj} rendering; "
+            f'use "{tgt_code}": null only if the text is identical in {tgt_name} '
             "(acronyms, numbers). JSON shape: "
-            '{"items": [{"n": <number>, "it": <string|null>}]}.\n'
+            f'{{"items": [{{"n": <number>, "{tgt_code}": <string|null>}}]}}.\n'
             f"Nomi da tradurre:\n{listing}"
         )
         try:
@@ -584,7 +602,7 @@ async def translate_entity_names(
                     key = str(int(item.get("n")))
                 except (TypeError, ValueError):
                     continue
-                value = item.get("it")
+                value = item.get(tgt_code)
                 by_n[key] = value if isinstance(value, str) else None
 
         now = datetime.utcnow()
@@ -596,9 +614,9 @@ async def translate_entity_names(
                     "error": "missing in model response",
                 })
                 continue
-            it_form = (by_n[key] or "").strip()
+            tgt_form = (by_n[key] or "").strip()
             before = {"canonical_target": e.canonical_target}
-            e.canonical_target = it_form or None
+            e.canonical_target = tgt_form or None
             e.updated_at = now
             e.version += 1
             db.add(e)
@@ -608,10 +626,10 @@ async def translate_entity_names(
                 entity="entity",
                 entity_id=str(e.id),
                 before=before,
-                after={"canonical_target": it_form or None},
+                after={"canonical_target": tgt_form or None},
                 created_at=now,
             ))
-            if it_form:
+            if tgt_form:
                 translated += 1
             else:
                 untranslatable += 1
@@ -986,6 +1004,9 @@ class EntityPatch(BaseModel):
     canonical_target: str | None = None
     entity_type: str | None = None
     referential_gender: str | None = Field(default=None)
+    # Multilingua 2026-10-29: prima ``italian_grammatical_gender`` (nome
+    # legacy ancora accettato nel PATCH per compat).
+    target_grammatical_gender: str | None = Field(default=None)
     italian_grammatical_gender: str | None = Field(default=None)
     grammatical_number: str | None = Field(default=None)
     translation_policy: str | None = Field(default=None)
@@ -1008,22 +1029,28 @@ async def patch_entity(
     """User review: set the §6.4 fields and/or promote the status.
 
     The user owns these fields (§15.2: “l'utente può impostare genere
-    referenziale, genere grammaticale italiano, numero e policy di
-    traduzione”); the runner never overwrites a value the user set on a
+    referenziale, genere grammaticale della lingua target, numero e policy
+    di traduzione”); the runner never overwrites a value the user set on a
     non-proposed entity.
     """
     _get_project(db, project_id)
     entity = _get_entity(db, project_id, entity_id)
 
     changes = payload.model_dump(exclude_none=True)
+    # Multilingua 2026-10-29: normalizza il campo legacy sul nuovo nome
+    # (l'attributo DB è target_grammatical_gender).
+    if "italian_grammatical_gender" in changes:
+        legacy = changes.pop("italian_grammatical_gender")
+        changes.setdefault("target_grammatical_gender", legacy)
     if "entity_type" in changes:
         if changes["entity_type"] not in _ENTITY_TYPES:
             raise HTTPException(status_code=422, detail="invalid entity_type")
     if "referential_gender" in changes and changes["referential_gender"] not in _GENDERS:
         raise HTTPException(status_code=422, detail="invalid referential_gender")
-    if ("italian_grammatical_gender" in changes
-            and changes["italian_grammatical_gender"] not in _IT_GENDERS):
-        raise HTTPException(status_code=422, detail="invalid italian_grammatical_gender")
+    if ("target_grammatical_gender" in changes
+            and changes["target_grammatical_gender"] not in _TARGET_GENDERS):
+        raise HTTPException(status_code=422,
+                            detail="invalid target_grammatical_gender")
     if "grammatical_number" in changes and changes["grammatical_number"] not in _NUMBERS:
         raise HTTPException(status_code=422, detail="invalid grammatical_number")
     if "translation_policy" in changes and changes["translation_policy"] not in _POLICIES:
@@ -1255,7 +1282,7 @@ async def split_entity(
         canonical_target=payload.canonical_target,
         entity_type=payload.entity_type,
         referential_gender="unknown",
-        italian_grammatical_gender="not_applicable",
+        target_grammatical_gender="not_applicable",
         grammatical_number="unknown",
         translation_policy="undecided",
         status="proposed",

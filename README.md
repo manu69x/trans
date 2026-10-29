@@ -12,12 +12,14 @@ data leaves your network. Inference goes exclusively through an
 OpenAI-compatible **LLM Gateway** you control (llama.cpp, llama-swap, vLLM,
 LM Studio, ...).
 
-> **Status: alpha (`v0.2.0-alpha`)**. The platform is in daily use for real
-> EN→IT literary work and is feature-complete for the single-user workflow,
-> but APIs, the DB schema and the UI will still change. The web UI is
-> **bilingual (Italian/English)**: the locale is auto-detected on first
-> visit and can be switched at any time from the sidebar. Code comments are
-> a mix of English and Italian.
+> **Status: alpha (`v0.3.0-alpha`)**. The platform is in daily use for real
+> literary work and is feature-complete for the single-user workflow, but
+> APIs, the DB schema and the UI will still change. **Multilingual Tier 1**
+> is live: source is English, targets are Italian, Spanish, French, German
+> and Portuguese (BookNLP entity extraction is English-only upstream).
+> The web UI is **bilingual (Italian/English)**: the locale is auto-detected
+> on first visit and can be switched at any time from the sidebar. Code
+> comments are a mix of English and Italian.
 
 | The CAT workbench — translate, review, approve | Token-budgeted segmentation |
 |---|---|
@@ -25,6 +27,10 @@ LM Studio, ...).
 
 ## Highlights
 
+- **Multilingual (Tier 1)**: EN→**IT / ES / FR / DE / PT**. Prompts, the
+  language catalog, grammatical-gender handling, quality estimation and the
+  anti-copy validators are all driven by the project's language pair
+  (`GET /api/v1/languages`; unsupported pairs are rejected at creation).
 - **PDF import** of digital books and scans: layout-aware extraction,
   OCR fallback, repeated header/footer removal (PRD §5.2, ADR-002).
 - **Structure detection**: chapters from bookmarks/heading patterns, an
@@ -41,9 +47,10 @@ LM Studio, ...).
 - **Human-in-the-loop approvals**: LLM output is always `machine_draft`;
   approved versions are immutable and every edit creates a new version,
   with a full audit trail (PRD §5.8).
-- **Quality estimation**: segment-level scores (is it Italian? is it
-  translated? is it still English?) from a small local QE model, with
-  filters and highlighting in the review UI (PRD §10.2-bis).
+- **Quality estimation**: segment-level scores (is it in the target
+  language? is it translated? is it still in the source language?) from a
+  small local QE model, with filters and highlighting in the review UI
+  (PRD §10.2-bis).
 - **Editorial exports**: DOCX, EPUB (incl. "clone" exports that mimic the
   source typography), PDF, HTML preview, plus XLIFF/TMX/CSV for round-trips
   with professional CAT tools (PRD §15.4).
@@ -183,6 +190,10 @@ Apply manually with:
 ```bash
 just migrate   # docker compose exec backend alembic upgrade head
 ```
+
+Migrations are append-only: `019_multilingual_rename` (v0.3.0-alpha) renames
+the language-specific verification/entity columns to language-neutral names;
+all values carry over and CSV/TBX imports still accept the old headers.
 
 ## Tests
 

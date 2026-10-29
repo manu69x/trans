@@ -75,8 +75,10 @@ def _editor_error(exc: EditorError) -> HTTPException:
 # --- CAT segmentation (§5.4) ----------------------------------------------
 def _unit_out(unit: TranslationUnit) -> dict:
     flags = dict(unit.source_flags or {})
-    it = float(unit.is_italian) if unit.is_italian is not None else None
-    en = float(unit.is_english) if unit.is_english is not None else None
+    tgt = (float(unit.is_target_lang)
+           if unit.is_target_lang is not None else None)
+    src = (float(unit.is_source_lang)
+           if unit.is_source_lang is not None else None)
     return {
         "segment_id": str(unit.id),
         "project_id": str(unit.project_id),
@@ -89,12 +91,12 @@ def _unit_out(unit: TranslationUnit) -> dict:
         "kind": flags.get("kind"),
         "page": flags.get("page"),
         "numero": unit.numero,
-        "is_italian": it,
+        "is_target_lang": tgt,
         "is_translated": (float(unit.is_translated)
                           if unit.is_translated is not None else None),
-        "is_english": en,
-        "qe_diff": (round(it - en, 4)
-                     if it is not None and en is not None else None),
+        "is_source_lang": src,
+        "qe_diff": (round(tgt - src, 4)
+                     if tgt is not None and src is not None else None),
     }
 
 
@@ -432,7 +434,7 @@ async def plan_chapter_blocks(
 
     Works on the persisted segments (run ``segment`` first); calls no LLM
     and writes nothing — the same planner the translation adapter will use
-    before dispatching a block to LLM Gateway.
+    before dispatching a block to Gateway Proxy.
     """
     _get_project(db, project_id)
     node = _get_node(db, project_id, node_id)

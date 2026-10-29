@@ -28,10 +28,12 @@ ENTITY_STATUSES: frozenset[str] = frozenset(
 REF_GENDERS: frozenset[str] = frozenset(
     {"male", "female", "nonbinary", "mixed", "unknown", "not_applicable"}
 )
-IT_GENDERS: frozenset[str] = frozenset(
-    {"masculine", "feminine", "common", "variable", "not_applicable"}
+# Multilingua 2026-10-29 (Tier 1): "neuter" per il tedesco; prima i set
+# erano limitati all'italiano ("IT_*").
+TARGET_GENDERS: frozenset[str] = frozenset(
+    {"masculine", "feminine", "neuter", "common", "variable", "not_applicable"}
 )
-IT_NUMBERS: frozenset[str] = frozenset(
+TARGET_NUMBERS: frozenset[str] = frozenset(
     {"singular", "plural", "invariant", "collective", "unknown"}
 )
 ENTITY_TYPES: frozenset[str] = frozenset(
@@ -46,14 +48,16 @@ POLICIES: frozenset[str] = frozenset(
 )
 PRIORITIES: frozenset[str] = frozenset({"block_batch", "warn", "normal"})
 
-# CSV header, in export order.
+# CSV header, in export order. Multilingua 2026-10-29: la colonna
+# ``italian_grammatical_gender`` diventa ``target_grammatical_gender``;
+# l'import accetta anche il vecchio header (file pre-Tier 1).
 CSV_COLUMNS: tuple[str, ...] = (
     "canonical_source",
     "canonical_target",
     "entity_type",
     "referential_gender",
     "referential_gender_evidence",
-    "italian_grammatical_gender",
+    "target_grammatical_gender",
     "grammatical_number",
     "translation_policy",
     "definition",
@@ -153,14 +157,14 @@ def _validate_ref_gender(value: Any) -> str | None:
     return text
 
 
-def _validate_it_gender(value: Any) -> str | None:
+def _validate_target_gender(value: Any) -> str | None:
     text = _clean(value).strip().lower()
     if not text:
         return None
-    if text not in IT_GENDERS:
+    if text not in TARGET_GENDERS:
         raise ValueError(
-            f"invalid IT grammatical_gender {text!r}; allowed: "
-            f"{', '.join(sorted(IT_GENDERS))}"
+            f"invalid target-language grammatical_gender {text!r}; allowed: "
+            f"{', '.join(sorted(TARGET_GENDERS))}"
         )
     return text
 
@@ -169,10 +173,10 @@ def _validate_number(value: Any) -> str | None:
     text = _clean(value).strip().lower()
     if not text:
         return None
-    if text not in IT_NUMBERS:
+    if text not in TARGET_NUMBERS:
         raise ValueError(
             f"invalid grammatical_number {text!r}; allowed: "
-            f"{', '.join(sorted(IT_NUMBERS))}"
+            f"{', '.join(sorted(TARGET_NUMBERS))}"
         )
     return text
 
@@ -219,7 +223,11 @@ def _clean_entity(row: Mapping[str, Any], row_no: int) -> dict:
     ref_evidence = (
         _clean(row.get("referential_gender_evidence")).strip() or None
     )
-    it_gender = _validate_it_gender(row.get("italian_grammatical_gender"))
+    tgt_gender = _validate_target_gender(
+        # Multilingua 2026-10-29: accetta anche il vecchio header CSV
+        # ``italian_grammatical_gender`` (file pre-Tier 1).
+        row.get("target_grammatical_gender")
+        or row.get("italian_grammatical_gender"))
     number = _validate_number(row.get("grammatical_number"))
     policy = _validate_policy(row.get("translation_policy"))
 
@@ -240,7 +248,7 @@ def _clean_entity(row: Mapping[str, Any], row_no: int) -> dict:
         "status": status,
         "referential_gender": ref_gender,
         "referential_gender_evidence": ref_evidence,
-        "italian_grammatical_gender": it_gender,
+        "target_grammatical_gender": tgt_gender,
         "grammatical_number": number,
         "translation_policy": policy,
         "definition": definition,
@@ -267,7 +275,8 @@ def export_csv(entities: Iterable[Mapping[str, Any]]) -> str:
             _clean(e.get("entity_type")),
             _clean(e.get("referential_gender")),
             _clean(e.get("referential_gender_evidence")),
-            _clean(e.get("italian_grammatical_gender")),
+            _clean(e.get("target_grammatical_gender")
+                   or e.get("italian_grammatical_gender")),
             _clean(e.get("grammatical_number")),
             _clean(e.get("translation_policy")),
             _clean(e.get("definition")),
@@ -319,7 +328,10 @@ def export_tbx(entities: Iterable[Mapping[str, Any]]) -> str:
 
     Each entry carries the English source and, on the ``<entry>`` element,
     the metadata the PRD §6.4/§6.5/§6.6 require (type, status, referential
-    and IT gender, number, policy, aliases, forbidden targets, priority).
+    and target-language gender, number, policy, aliases, forbidden targets,
+    priority). Multilingua 2026-10-29: gli attributi ``gender_it`` /
+    ``number_it`` diventano ``gender_target`` / ``number_target`` (l'import
+    accetta anche i vecchi).
     """
     parts: list[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -339,7 +351,9 @@ def export_tbx(entities: Iterable[Mapping[str, Any]]) -> str:
         entity_type = _xml_escape(_clean(e.get("entity_type")) or "")
         status = _xml_escape(_clean(e.get("status")) or "proposed")
         ref_gender = _clean(e.get("referential_gender") or "")
-        it_gender = _clean(e.get("italian_grammatical_gender") or "")
+        tgt_gender = _clean(
+            e.get("target_grammatical_gender")
+            or e.get("italian_grammatical_gender") or "")
         number = _clean(e.get("grammatical_number") or "")
         policy = _clean(e.get("translation_policy") or "")
         priority = _clean(e.get("priority") or "")
@@ -352,11 +366,11 @@ def export_tbx(entities: Iterable[Mapping[str, Any]]) -> str:
         )
         if ref_gender:
             parts.append(f'          ref_gender="{_xml_escape(ref_gender)}"')
-        if it_gender:
+        if tgt_gender:
             parts.append(
-                f'          gender_it="{_xml_escape(it_gender)}"')
+                f'          gender_target="{_xml_escape(tgt_gender)}"')
         if number:
-            parts.append(f'          number_it="{_xml_escape(number)}"')
+            parts.append(f'          number_target="{_xml_escape(number)}"')
         if policy:
             parts.append(f'          policy="{_xml_escape(policy)}"')
         if priority:
@@ -395,11 +409,13 @@ def export_tbx(entities: Iterable[Mapping[str, Any]]) -> str:
     return "\n".join(parts) + "\n"
 
 
-def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
+def import_tbx(text: str, target_lang: str = "it") -> tuple[list[dict], list[dict]]:
     """Parse a TBX2 glossary into ``(entities, errors)``.
 
     Uses :mod:`xml.etree.ElementTree`; namespace prefixes are stripped so
     the reader is tolerant of both namespaced and bare elements.
+    *target_lang* seleziona il ``<glossgrp lang=...>`` del target
+    (multilingua 2026-10-29; default ``it`` per i file pre-Tier 1).
     """
     import xml.etree.ElementTree as ET
 
@@ -428,7 +444,7 @@ def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
                 lang = (grp.get("lang") or "").lower()
                 ls = [c for c in grp.iter() if _local(c.tag) == "l"]
                 gloss = " ".join(_l_text(l) for l in ls)
-                if lang == "it":
+                if lang == (target_lang or "it").lower():
                     target = gloss.strip()
                 elif lang in ("en", "eng"):
                     source = gloss.strip()
@@ -461,8 +477,10 @@ def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
                 "entity_type": _attr("type") or "CONCEPT_TERM",
                 "status": _attr("status") or "proposed",
                 "referential_gender": _attr("ref_gender") or None,
-                "italian_grammatical_gender": _attr("gender_it") or None,
-                "grammatical_number": _attr("number_it") or None,
+                "target_grammatical_gender": (
+                    _attr("gender_target") or _attr("gender_it") or None),
+                "grammatical_number": (
+                    _attr("number_target") or _attr("number_it") or None),
                 "translation_policy": _attr("policy") or None,
                 "priority": _attr("priority") or None,
                 "aliases": aliases,

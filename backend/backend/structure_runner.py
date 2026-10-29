@@ -12,14 +12,14 @@ rows, mirroring :mod:`backend.l1_runner` / :mod:`backend.ocr_runner`:
   re-queued at any time (it is a single idempotent pass).
 * **Progress** — ``job.result.progress`` is updated per phase (§14).
 * **Local only** — the optional LLM verification (evidence 6) calls the
-  *analysis* model through the local LLM Gateway only; when no model is
+  *analysis* model through the local Gateway Proxy only; when no model is
   configured the run stays fully offline and ambiguous nodes are flagged
   for review instead (PRD §5.3.6: the model never segments, it only
   verifies).
 
 The ambiguous-node verification is *pluggable*: the runner ships without an
 LLM dependency and the F1 tests exercise the offline path; wiring the
-LLM Gateway analysis model is a later-phase concern (the pure layer's
+Gateway Proxy analysis model is a later-phase concern (the pure layer's
 ``text_model`` hook is the integration point).
 """
 from __future__ import annotations

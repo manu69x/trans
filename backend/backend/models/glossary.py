@@ -38,7 +38,9 @@ class GlossaryTerm(Base):
     term_type: Mapped[str] = mapped_column(String(48), nullable=False)
     preferred: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
     forbidden_targets: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=lambda: [])
-    grammatical_gender_it: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # Genere grammaticale del termine nella lingua target (multilingua
+    # 2026-10-29: prima ``grammatical_gender_it``, coppia cablata EN→IT).
+    grammatical_gender_target: Mapped[str | None] = mapped_column(String(24), nullable=True)
     grammatical_number: Mapped[str | None] = mapped_column(String(24), nullable=True)
     inflection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     usage_notes: Mapped[str | None] = mapped_column(Text, nullable=True)

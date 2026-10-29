@@ -26,10 +26,12 @@ from typing import Any, Iterable, Mapping
 TERM_STATUSES: frozenset[str] = frozenset(
     {"proposed", "verified", "approved", "deprecated", "archived"}
 )
-IT_GENDERS: frozenset[str] = frozenset(
-    {"masculine", "feminine", "common", "variable", "not_applicable"}
+# Multilingua 2026-10-29 (Tier 1): i valori di genere/numero valgono per
+# tutte le lingue target del catalogo (prima solo italiano: "IT_*").
+TARGET_GENDERS: frozenset[str] = frozenset(
+    {"masculine", "feminine", "neuter", "common", "variable", "not_applicable"}
 )
-IT_NUMBERS: frozenset[str] = frozenset(
+TARGET_NUMBERS: frozenset[str] = frozenset(
     {"singular", "plural", "invariant", "collective", "unknown"}
 )
 # §6.3 entity categories, reused as the term_type vocabulary.
@@ -48,7 +50,7 @@ CSV_COLUMNS: tuple[str, ...] = (
     "term_type",
     "preferred",
     "forbidden_targets",
-    "grammatical_gender_it",
+    "grammatical_gender_target",
     "grammatical_number",
     "inflection_notes",
     "usage_notes",
@@ -105,24 +107,26 @@ def _validate_term_type(value: Any) -> str:
     return text
 
 
-def _validate_it_gender(value: Any) -> str | None:
+def _validate_target_gender(value: Any) -> str | None:
     text = _clean(value).strip().lower()
     if not text:
         return None
-    if text not in IT_GENDERS:
+    if text not in TARGET_GENDERS:
         raise ValueError(
-            f"invalid IT gender {text!r}; allowed: {', '.join(sorted(IT_GENDERS))}"
+            f"invalid target-language gender {text!r}; allowed: "
+            f"{', '.join(sorted(TARGET_GENDERS))}"
         )
     return text
 
 
-def _validate_it_number(value: Any) -> str | None:
+def _validate_target_number(value: Any) -> str | None:
     text = _clean(value).strip().lower()
     if not text:
         return None
-    if text not in IT_NUMBERS:
+    if text not in TARGET_NUMBERS:
         raise ValueError(
-            f"invalid IT number {text!r}; allowed: {', '.join(sorted(IT_NUMBERS))}"
+            f"invalid target-language number {text!r}; allowed: "
+            f"{', '.join(sorted(TARGET_NUMBERS))}"
         )
     return text
 
@@ -152,8 +156,12 @@ def _clean_term(row: Mapping[str, Any], row_no: int) -> dict:
     term_type = _validate_term_type(row.get("term_type"))
     preferred = _as_bool(row.get("preferred", True))
     forbidden = _as_list(row.get("forbidden_targets"))
-    gender = _validate_it_gender(row.get("grammatical_gender_it"))
-    number = _validate_it_number(row.get("grammatical_number"))
+    gender = _validate_target_gender(
+        # Multilingua 2026-10-29: accetta anche il vecchio header CSV
+        # ``grammatical_gender_it`` (file esportati prima del Tier 1).
+        row.get("grammatical_gender_target")
+        or row.get("grammatical_gender_it"))
+    number = _validate_target_number(row.get("grammatical_number"))
     inflection = _clean(row.get("inflection_notes")).strip() or None
     usage = _clean(row.get("usage_notes")).strip() or None
     status = _validate_status(row.get("status"))
@@ -164,7 +172,7 @@ def _clean_term(row: Mapping[str, Any], row_no: int) -> dict:
         "term_type": term_type,
         "preferred": preferred,
         "forbidden_targets": forbidden,
-        "grammatical_gender_it": gender,
+        "grammatical_gender_target": gender,
         "grammatical_number": number,
         "inflection_notes": inflection,
         "usage_notes": usage,
@@ -207,7 +215,7 @@ def export_csv(terms: Iterable[Mapping[str, Any]]) -> str:
             _clean(t.get("term_type")),
             _TRUE if t.get("preferred") else _FALSE,
             _LIST_SEP.join(t.get("forbidden_targets") or []),
-            _clean(t.get("grammatical_gender_it")),
+            _clean(t.get("grammatical_gender_target")),
             _clean(t.get("grammatical_number")),
             _clean(t.get("inflection_notes")),
             _clean(t.get("usage_notes")),
@@ -225,12 +233,15 @@ def _xml_escape(text: str) -> str:
     )
 
 
-def export_tbx(terms: Iterable[Mapping[str, Any]]) -> str:
+def export_tbx(terms: Iterable[Mapping[str, Any]],
+               target_lang: str = "it") -> str:
     """Serialise term-like mappings to a TBX2 bilingual glossary (TEI).
 
-    The head gloss is the Italian target; each entry carries the English
-    source and, on the ``<entry>`` element, the metadata the PRD §6.5/§7.3
-    require (type, preferred, IT gender/number, status, forbidden targets).
+    The head gloss is the target-language term; each entry carries the
+    English source and, on the ``<entry>`` element, the metadata the PRD
+    §6.5/§7.3 require (type, preferred, target gender/number, status,
+    forbidden targets). Multilingua 2026-10-29: ``gender_target`` /
+    ``number_target`` / ``<glossgrp lang=<target>>`` (prima cablati it).
     """
     parts: list[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -249,7 +260,7 @@ def export_tbx(terms: Iterable[Mapping[str, Any]]) -> str:
         target = _xml_escape(_clean(t.get("target_term")) or "")
         term_type = _xml_escape(_clean(t.get("term_type")) or "")
         status = _xml_escape(_clean(t.get("status")) or "proposed")
-        gender = _clean(t.get("grammatical_gender_it") or "")
+        gender = _clean(t.get("grammatical_gender_target") or "")
         number = _clean(t.get("grammatical_number") or "")
         preferred = _TRUE if t.get("preferred") else _FALSE
         forbidden = t.get("forbidden_targets") or []
@@ -262,16 +273,16 @@ def export_tbx(terms: Iterable[Mapping[str, Any]]) -> str:
             f' preferred="{preferred}" status="{status}"'
         )
         if gender:
-            parts.append(f'          gender_it="{_xml_escape(gender)}"')
+            parts.append(f'          gender_target="{_xml_escape(gender)}"')
         if number:
-            parts.append(f'          number_it="{_xml_escape(number)}"')
+            parts.append(f'          number_target="{_xml_escape(number)}"')
         parts.append("        >")
         parts.append("          <head>")
         parts.append(
             f'            <gloss><ref target="#{entry_id}">{target}</ref></gloss>'
         )
         parts.append("          </head>")
-        parts.append('          <glossgrp lang="it">')
+        parts.append(f'          <glossgrp lang="{target_lang}">')
         parts.append("            <lg>")
         parts.append(
             f'              <l><ref target="#{entry_id}">{target}</ref></l>'
@@ -305,11 +316,13 @@ def export_tbx(terms: Iterable[Mapping[str, Any]]) -> str:
     return "\n".join(parts) + "\n"
 
 
-def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
+def import_tbx(text: str, target_lang: str = "it") -> tuple[list[dict], list[dict]]:
     """Parse a TBX2 glossary into ``(terms, errors``.
 
     Uses :mod:`xml.etree.ElementTree`; namespace prefixes are stripped so the
     reader is tolerant of both namespaced and bare elements.
+    *target_lang* seleziona il ``<glossgrp lang=...>`` del target
+    (multilingua 2026-10-29; default ``it`` per i file pre-Tier 1).
     """
     import xml.etree.ElementTree as ET
 
@@ -348,7 +361,7 @@ def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
                 # descendants of the glossgrp rather than only direct children.
                 ls = [c for c in grp.iter() if _local(c.tag) == "l"]
                 gloss = " ".join(_l_text(l) for l in ls)
-                if lang == "it":
+                if lang == (target_lang or "it").lower():
                     target = gloss.strip()
                 elif lang in ("en", "eng"):
                     source = gloss.strip()
@@ -371,8 +384,11 @@ def import_tbx(text: str) -> tuple[list[dict], list[dict]]:
                 "target_term": target,
                 "term_type": _attr("type") or "CONCEPT_TERM",
                 "preferred": _attr("preferred").lower() == "true",
-                "grammatical_gender_it": _attr("gender_it") or None,
-                "grammatical_number": _attr("number_it") or None,
+                # Compat: i file pre-Tier 1 portano gender_it/number_it.
+                "grammatical_gender_target": (
+                    _attr("gender_target") or _attr("gender_it") or None),
+                "grammatical_number": (
+                    _attr("number_target") or _attr("number_it") or None),
                 "status": _attr("status") or "proposed",
             }
             # <desc>/<note> carry inflection/usage/forbidden metadata.
@@ -509,8 +525,10 @@ def _entry(e: Mapping[str, Any]) -> dict:
         "source": e.get("canonical_source"),
         "target": e.get("canonical_target"),
         "type": e.get("entity_type"),
-        "italian_grammatical_gender": e.get("italian_grammatical_gender"),
-        "italian_grammatical_number": e.get("grammatical_number"),
+        "target_grammatical_gender": (
+            e.get("target_grammatical_gender")
+            or e.get("italian_grammatical_gender")),
+        "grammatical_number": e.get("grammatical_number"),
         "aliases": list(e.get("aliases") or []),
         "policy": e.get("translation_policy"),
         "notes": e.get("notes"),
@@ -525,8 +543,10 @@ def _term_entry(t: Mapping[str, Any]) -> dict:
         "source": t.get("source_term"),
         "target": t.get("target_term"),
         "type": t.get("term_type"),
-        "italian_grammatical_gender": t.get("grammatical_gender_it"),
-        "italian_grammatical_number": t.get("grammatical_number"),
+        "target_grammatical_gender": (
+            t.get("grammatical_gender_target")
+            or t.get("grammatical_gender_it")),
+        "grammatical_number": t.get("grammatical_number"),
         "aliases": [],
         "policy": "preferred" if t.get("preferred") else "contextual",
         "notes": t.get("usage_notes"),

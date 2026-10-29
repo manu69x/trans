@@ -81,7 +81,7 @@ export default function EntitiesPage() {
     string,
     string
   >;
-  const italianGenderLabels = dict.enums.italianGender as Record<string, string>;
+  const targetGenderLabels = dict.enums.targetGender as Record<string, string>;
   const grammaticalNumberLabels = dict.enums.grammaticalNumber as Record<
     string,
     string
@@ -1172,7 +1172,7 @@ function SidePanel({
     string,
     string
   >;
-  const italianGenderLabels = dict.enums.italianGender as Record<string, string>;
+  const targetGenderLabels = dict.enums.targetGender as Record<string, string>;
   const grammaticalNumberLabels = dict.enums.grammaticalNumber as Record<
     string,
     string
@@ -1316,11 +1316,11 @@ function SidePanel({
             onChange={(v) => void onField("referential_gender", v)}
           />
           <SelectField
-            label={t("entitiesPage.italianGenderField")}
-            value={entity.italian_grammatical_gender}
-            options={Object.keys(italianGenderLabels)}
-            labels={italianGenderLabels}
-            onChange={(v) => void onField("italian_grammatical_gender", v)}
+            label={t("entitiesPage.targetGenderField")}
+            value={entity.target_grammatical_gender}
+            options={Object.keys(targetGenderLabels)}
+            labels={targetGenderLabels}
+            onChange={(v) => void onField("target_grammatical_gender", v)}
           />
           <SelectField
             label={t("entitiesPage.numberField")}

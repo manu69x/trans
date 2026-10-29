@@ -42,7 +42,7 @@ from backend.config import (
     LLM_GATEWAY_MAX_OUTPUT_TOKENS,
     assert_local_url,
 )
-from backend.gateway_http import (
+from backend.llm_gateway import (
     GatewayClient,
     GatewayInvalidJSON,
     GatewayUnavailable,
@@ -264,12 +264,12 @@ def _save_segments(db: Session, project_id: str, chapter_id, segments,
             existing[sid] = row
         elif _normalize_for_compare(row.target_text or "") != \
                 _normalize_for_compare(target):
-            # La traduzione e' cambiata: i punteggi QE si riferivano alla
+            # La traduzione e' cambiata: i punteggi Spark si riferivano alla
             # vecchia bozza, non sono piu' validi (si ricalcola con
             # "Verifica QE").
-            row.is_italian = None
+            row.is_target_lang = None
             row.is_translated = None
-            row.is_english = None
+            row.is_source_lang = None
         row.target_text = target
         row.status = STATUS_DRAFT
         row.model_run_id = model_run_id
@@ -372,58 +372,50 @@ def _normalize_for_compare(text: str) -> str:
     return " ".join(t.split())
 
 
-# Prefiltro economico anti-inglese: conta i marcatori di italiano. Una
-# traduzione italiana ha quasi sempre >= 2 di queste parole o un accento.
-# NB: il pronome italiano "i" va cercato case-sensitive, altrimenti fa
-# matchare la pronome inglese "I" e fa passare i paragrafi inglesi per
-# italiani (bug 2026-09-24, segmento 45).
-_IT_MARKER_RE = re.compile(
-    r"\b(che|non|per|con|una|uno|il|la|le|gli|del|della|dello|degli|"
-    r"delle|questo|questa|quello|quella|sono|essere|stato|stata|stati|"
-    r"state|aveva|avevo|avevano|nella|nello|nelli|alla|dalla|sulla|"
-    r"piu|più|gia|già|cosi|così|anche|loro|noi|voi|ma|come|dove|quando|"
-    r"se|si|ha|hanno|ho|hai|sua|suo|miei|tuoi|suoi|questi|queste|"
-    r"quelli|quelle|molto|troppo|poi|invece|davvero|forse)\b",
-    re.IGNORECASE,
-)
-_IT_I_RE = re.compile(r"\bi\b")
-_ACCENT_RE = re.compile(r"[àèéìíòóù]")
+# Prefiltro economico anti-copia: il target mostra marcatori della LINGUA
+# TARGET (multilingua 2026-10-29, catalogo backend.languages)? Una traduzione
+# vera ha quasi sempre >= 2 di queste parole o un diacritico. NB: il pronome
+# italiano "i" va cercato case-sensitive, altrimenti fa matchare la pronome
+# inglese "I" e fa passare i paragrafi inglesi per italiani (bug 2026-09-24,
+# segmento 45).
 
 
-def _looks_english(text: str) -> bool:
-    """True se il testo non mostra marcatori di italiano."""
-    t = text or ""
-    if _ACCENT_RE.search(t):
-        return False
-    score = len(_IT_MARKER_RE.findall(t)) + len(_IT_I_RE.findall(t))
-    return score < 2
+def _lacks_target_markers(text: str, target_lang: str = "it") -> bool:
+    """True se il testo non mostra marcatori della lingua target."""
+    from ..languages import target_has_markers
+    return not target_has_markers(text, target_lang)
 
 
-def _response_is_english(response, segments: list[dict]) -> bool:
-    """True quando qualche target e' inglese non tradotto.
+def _response_is_untranslated(response, segments: list[dict],
+                              source_lang: str = "en",
+                              target_lang: str = "it") -> bool:
+    """True quando qualche target e' source non tradotta.
 
     Il confronto normalizzato non basta: il modello a volte RISCRIVE il
-    testo inglese con parole diverse (incidente segmenti 45/70). Su ogni
-    target senza marcatori italiani chiede conferma al rilevatore Spark
-    (is_english >= 0.5). Se il rilevatore non risponde non blocca.
+    testo sorgente con parole diverse (incidente segmenti 45/70). Su ogni
+    target senza marcatori della lingua target chiede conferma al rilevatore
+    Spark (is_source_lang >= 0.5). Se il rilevatore non risponde non blocca.
     """
     translations = (response or {}).get("translations") or []
     src_by_id = {s.get("segment_id"): s.get("source_text") or ""
                  for s in segments}
     for t in translations:
         tgt = t.get("target_text") or ""
-        if len(tgt) < 40 or not _looks_english(tgt):
+        if len(tgt) < 40 or not _lacks_target_markers(tgt, target_lang):
             continue
         src = src_by_id.get(t.get("segment_id")) or ""
         try:
             from backend.qe_client import verify_segment_qe
-            if verify_segment_qe(src, tgt)["is_english"] >= 0.5:
-                return True  # confermato inglese dal rilevatore
-            # Spark dice NON inglese: il sospetto dell'euristica e' sciolto
-            # (fix 2026-10-01: prima il verdetto di assoluzione veniva
-            # ignorato e la funzione ritornava comunque suspicious=True,
-            # scartando traduzioni corrette con titoli/nomi inglesi dentro,
-            # es. i blurb "—New Scientist on Children of Time").
+            if verify_segment_qe(src, tgt, source_lang=source_lang,
+                                  target_lang=target_lang)[
+                                  "is_source_lang"] >= 0.5:
+                return True  # confermato source non tradotta dal rilevatore
+            # Spark dice NON-source: il sospetto dell'euristica e'
+            # sciolto (fix 2026-10-01: prima il verdetto di assoluzione
+            # veniva ignorato e la funzione ritornava comunque
+            # suspicious=True, scartando traduzioni corrette con
+            # titoli/nomi inglesi dentro, es. i blurb
+            # "—New Scientist on Children of Time").
         except Exception:  # noqa: BLE001 - il check non deve bloccare
             return False
     return False
@@ -682,11 +674,13 @@ def run_translation_batch(db: Session, job: Job) -> None:
         "target": e.canonical_target,
         "forbidden_targets": e.forbidden_targets or [],
         "policy": "not_translate" if e.never_translate else "translate",
-        "gender": e.italian_grammatical_gender,
+        "gender": e.target_grammatical_gender,
         "number": e.grammatical_number,
         "allow_inflection": bool(e.allow_inflection),
     } for e in _all_entities if e.canonical_source in _selected_sources]
 
+    source_lang = getattr(project, "source_language", None) or "en"
+    target_lang = getattr(project, "target_language", None) or "it"
     plan = build_block_plan(
         model_id=model,
         block_source=block_source,
@@ -701,7 +695,7 @@ def run_translation_batch(db: Session, job: Job) -> None:
                             "forbidden_targets": t.forbidden_targets or [],
                             "policy": "not_translate" if t.preferred
                             else "translate",
-                            "gender": t.grammatical_gender_it,
+                            "gender": t.grammatical_gender_target,
                             "number": t.grammatical_number}
                           for t in db.query(GlossaryTerm).filter(
                               GlossaryTerm.project_id == project_id,
@@ -710,6 +704,8 @@ def run_translation_batch(db: Session, job: Job) -> None:
         style_guide=job.payload.get("style_guide"),
         snapshot_ids=job.payload.get("snapshot_ids") or {},
         output_schema=SCHEMA,
+        source_lang=source_lang,
+        target_lang=target_lang,
     )
 
     if not plan.budget.get("within_ceiling", True):
@@ -740,7 +736,9 @@ def run_translation_batch(db: Session, job: Job) -> None:
     def _response_untranslated(resp) -> bool:
         if _is_source_copy(resp, segments):
             return True
-        return _response_is_english(resp, segments)
+        return _response_is_untranslated(resp, segments,
+                                         source_lang=source_lang,
+                                         target_lang=target_lang)
 
     T_payload = float(job.payload.get("temperature") or 0.0)
     # Scala: determinismo prima (stessa T), poi diversita' di campionamento
@@ -780,7 +778,8 @@ def run_translation_batch(db: Session, job: Job) -> None:
             last_error = str(exc)[:500]
             continue
         if _response_untranslated(resp):
-            last_error = "translation is English/untranslated (anti-copy)"
+            last_error = (f"translation is {source_lang}"
+                          "/untranslated (anti-copy)")
             continue
         errors = validate_response(requested=segments, response=resp,
                                    constraints=constraints)

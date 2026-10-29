@@ -499,17 +499,17 @@ export default function TranslationPage() {
     return true;
   });
   // Ordinamento della lista secondo la tendina "ordinamento per"
-  // (numero, IT, TR, EN, DIFF); i valori mancanti restano in coda.
+  // (numero, TGT, TR, SRC, DIFF); i valori mancanti restano in coda.
   const sortValue = (s: (typeof allSegments)[number]): number | null => {
     switch (sortKey) {
       case "numero":
         return s.numero ?? null;
       case "it":
-        return s.is_italian;
+        return s.is_target_lang;
       case "tr":
         return s.is_translated;
       case "en":
-        return s.is_english;
+        return s.is_source_lang;
       case "diff":
         return s.qe_diff;
     }
@@ -895,9 +895,9 @@ export default function TranslationPage() {
                 className="rounded bg-slate-800 px-1 py-0.5 text-[11px] text-white"
               >
                 <option value="numero">{t("editor.sortNumero")}</option>
-                <option value="it">IT</option>
+                <option value="it">TGT</option>
                 <option value="tr">TR</option>
-                <option value="en">EN</option>
+                <option value="en">SRC</option>
                 <option value="diff">DIFF</option>
               </select>
               <button
@@ -971,12 +971,12 @@ export default function TranslationPage() {
                           OCR
                         </span>
                       )}
-                      {typeof seg.is_italian === "number" && (
+                      {typeof seg.is_target_lang === "number" && (
                         <span
                           className="badge bg-indigo-500/20 text-indigo-300"
                           title={t("editor.qeItTitle")}
                         >
-                          IT {seg.is_italian.toFixed(2)}
+                          TGT {seg.is_target_lang.toFixed(2)}
                         </span>
                       )}
                       {typeof seg.is_translated === "number" && (
@@ -987,12 +987,12 @@ export default function TranslationPage() {
                           TR {seg.is_translated.toFixed(2)}
                         </span>
                       )}
-                      {typeof seg.is_english === "number" && (
+                      {typeof seg.is_source_lang === "number" && (
                         <span
                           className="badge bg-indigo-500/20 text-indigo-300"
                           title={t("editor.qeEnTitle")}
                         >
-                          EN {seg.is_english.toFixed(2)}
+                          SRC {seg.is_source_lang.toFixed(2)}
                         </span>
                       )}
                       {typeof seg.qe_diff === "number" && (

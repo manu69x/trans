@@ -12,14 +12,14 @@ restart: "docker compose -f infra/docker-compose.yml restart"
 
 logs: "docker compose -f infra/docker-compose.yml logs -f"
 ps: "docker compose -f infra/docker-compose.yml ps"
-# The real status is the Docker healthcheck state (docker compose ps):
-# db/redis/minio expose no HTTP /health and the frontend is on host port 3002.
+# Lo stato reale è quello dei healthcheck Docker (docker compose ps):
+# endpoint HTTP /health non esistono su db/redis/minio e il frontend è su 3002.
 status: "docker compose -f infra/docker-compose.yml ps"
 
 # --- Database ---------------------------------------------------------------
 
-# The schema is managed by Alembic (no init SQL): migrations run inside the
-# backend container, where alembic.ini and migrations/ live.
+# Lo schema è gestito da Alembic (nessun init SQL): la migrazione gira nel
+# container backend, dove vivono alembic.ini e migrations/.
 migrate: "docker compose -f infra/docker-compose.yml exec backend alembic upgrade head"
 db-shell: "docker compose -f infra/docker-compose.yml exec db psql -U trans -d trans"
 

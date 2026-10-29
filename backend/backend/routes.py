@@ -38,6 +38,27 @@ from .storage import get_storage_provider
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+# Multilingua (2026-10-29): catalogo coppie abilitate per il frontend
+# (picker "nuovo progetto") e per la validazione lato client.
+languages_router = APIRouter(prefix="/languages", tags=["languages"])
+
+
+@languages_router.get("")
+async def list_supported_languages() -> dict:
+    """Coppie di lingue abilitate (Tier 1: en -> it/es/fr/de/pt)."""
+    from .languages import LANGUAGES, SUPPORTED_SOURCE, SUPPORTED_TARGETS
+    return {
+        "source": SUPPORTED_SOURCE,
+        "targets": [
+            {
+                "code": code,
+                "name_en": LANGUAGES[code]["name_en"],
+                "name_it": LANGUAGES[code]["name_it"],
+            }
+            for code in SUPPORTED_TARGETS
+        ],
+    }
+
 
 def _enforce_rate(bucket: str, request: Any = None) -> None:
     """Token-bucket guard (§13/§14). Raises 429 when the budget is spent.
@@ -133,6 +154,15 @@ async def list_projects(db: Session = Depends(get_db_session)) -> list[ProjectOu
 async def create_project(
     payload: ProjectCreate, db: Session = Depends(get_db_session)
 ) -> ProjectOut:
+    # Multilingua Tier 1 (2026-10-29): solo coppie abilitate dal catalogo.
+    from .languages import is_supported_pair
+    if not is_supported_pair(payload.source_language,
+                             payload.target_language):
+        raise HTTPException(
+            status_code=422,
+            detail=("unsupported language pair "
+                    f"{payload.source_language}->{payload.target_language}; "
+                    "supported source: en, targets: it, es, fr, de, pt"))
     svc = ProjectService(db)
     project = svc.create_project(**payload.model_dump())
     return ProjectOut.model_validate(project)

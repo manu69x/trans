@@ -1,4 +1,4 @@
-"""Tests for the entity UI surface.
+"""Tests for the entity UI surface (task t_e88362d8 / PRD §6.6, §15.2).
 
 Acceptance criteria under test:
 
@@ -98,7 +98,7 @@ def _seed_entities(pid: str) -> dict[str, str]:
         id="33333333-3333-3333-3333-333333333333",
         project_id=pid, canonical_source="Maren", canonical_target=None,
         entity_type="PERSON", referential_gender="female",
-        italian_grammatical_gender="feminine", grammatical_number="singular",
+        target_grammatical_gender="feminine", grammatical_number="singular",
         translation_policy="translate", status="proposed", version=1,
         never_translate=False, allow_inflection=True, created_at=now,
         updated_at=now)
@@ -109,7 +109,7 @@ def _seed_entities(pid: str) -> dict[str, str]:
         id="44444444-4444-4444-4444-444444444444",
         project_id=pid, canonical_source="Mara", canonical_target=None,
         entity_type="PERSON", referential_gender="female",
-        italian_grammatical_gender="feminine", grammatical_number="singular",
+        target_grammatical_gender="feminine", grammatical_number="singular",
         translation_policy="translate", status="proposed", version=1,
         never_translate=False, allow_inflection=True, created_at=now,
         updated_at=now)
@@ -120,7 +120,7 @@ def _seed_entities(pid: str) -> dict[str, str]:
         id="55555555-5555-5555-5555-555555555555",
         project_id=pid, canonical_source="Saint Albans", canonical_target=None,
         entity_type="LOCATION", referential_gender="not_applicable",
-        italian_grammatical_gender="not_applicable",
+        target_grammatical_gender="not_applicable",
         grammatical_number="singular", translation_policy="keep_source",
         status="proposed", version=1, never_translate=False,
         allow_inflection=True, created_at=now, updated_at=now)

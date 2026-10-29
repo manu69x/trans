@@ -1,15 +1,15 @@
-"""Tests for the BookNLP entity-extraction worker.
+"""Tests for the BookNLP entity-extraction worker (task t_cfa55b05).
 
 Acceptance criteria under test (PRD §6.2, §6.3, §6.4, §15.2):
 
 * AC1 — ``POST /api/v1/projects/{id}/entities/extract`` queues the job and
   the worker populates ``entities`` (status ``proposed``) with aliases,
-  mentions and evidence from the real BookNLP service.
+  mentions and evidence from the real BookNLP (small local models).
 * AC2 — every proposed entity carries at least one evidence with a quote
   and a page number (§15.2), and no isolated first-person ``I`` pronoun
   becomes an entity (§15.2).
 * AC3 — all §6.4 fields are present and populated on every entity:
-  ``referential_gender`` (+ evidence), ``italian_grammatical_gender``,
+  ``referential_gender`` (+ evidence), ``target_grammatical_gender``,
   ``grammatical_number``, ``translation_policy``; gender inference follows
   the pronouns (referential, not identity), with the low-margin case kept
   ``unknown``.
@@ -19,11 +19,9 @@ Acceptance criteria under test (PRD §6.2, §6.3, §6.4, §15.2):
   (``booknlp/<project>/<job>/...``) and a reprocess run
   (``reuse_output_key``) rebuilds entities without re-running the models.
 
-These tests exercise the REAL BookNLP GPU service through the configured
-LLM Gateway (ADR-008): they skip when the service is unreachable (no GPU
-box / gateway upstream configured). Only the transformer NER is skipped
-when no offline model is cached — the run must then still succeed
-(BookNLP-only).
+The BookNLP subprocess is REAL (it runs the ``.venv-booknlp`` interpreter
+with the local small models); only the transformer NER is skipped when no
+offline model is cached — the run must then still succeed (BookNLP-only).
 """
 from __future__ import annotations
 
@@ -75,17 +73,6 @@ def _reset():
     yield
     wait_for_workers()
     engine.dispose()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _booknlp_service_required():
-    """The whole module drives the real BookNLP GPU service (ADR-008)."""
-    from backend import booknlp_service
-
-    try:
-        booknlp_service.check_health(timeout=10.0)
-    except Exception as exc:  # noqa: BLE001 - service absence is a skip
-        pytest.skip(f"BookNLP GPU service unreachable via gateway: {exc}")
 
 
 @pytest.fixture
@@ -260,7 +247,7 @@ async def test_section_6_4_fields_populated(client):
     valid = {
         "referential_gender": {"male", "female", "nonbinary", "mixed",
                                "unknown", "not_applicable"},
-        "italian_grammatical_gender": {"masculine", "feminine", "common",
+        "target_grammatical_gender": {"masculine", "feminine", "common",
                                        "variable", "not_applicable"},
         "grammatical_number": {"singular", "plural", "invariant",
                                "collective", "unknown"},
@@ -345,7 +332,7 @@ async def test_rerun_is_idempotent_and_review_survives(client):
             "status": "approved",
             "canonical_target": "Forma Approvata",
             "referential_gender": "female",
-            "italian_grammatical_gender": "feminine",
+            "target_grammatical_gender": "feminine",
             "grammatical_number": "singular",
             "translation_policy": "keep_source",
         })
@@ -361,7 +348,7 @@ async def test_rerun_is_idempotent_and_review_survives(client):
     assert len(approved) == 1
     assert approved[0]["status"] == "approved"
     assert approved[0]["canonical_target"] == "Forma Approvata"
-    assert approved[0]["italian_grammatical_gender"] == "feminine"
+    assert approved[0]["target_grammatical_gender"] == "feminine"
 
     # no duplicate proposed rows for the same canonical name
     names = [e["canonical_source"].lower() for e in second]

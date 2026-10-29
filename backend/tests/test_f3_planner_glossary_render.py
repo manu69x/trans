@@ -37,7 +37,7 @@ def test_entity_payload_keys_are_accepted():
     out = render_glossary_section(
         [], [{"canonical_source": "Mary", "canonical_target": "Mary",
               "policy": "not_translate",
-              "italian_grammatical_gender": "feminine",
+              "target_grammatical_gender": "feminine",
               "grammatical_number": "singular"}])
     assert out == ("- Mary -> Mary  "
                    "[NON TRADURRE: usa questa forma · femminile singolare]")

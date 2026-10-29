@@ -1,4 +1,4 @@
-"""Tests for the termbase (glossary) surface.
+"""Tests for the termbase (glossary) surface (task t_8c8fe85f).
 
 Acceptance criteria under test (PRD §7.1, §7.3, §12.3, §15.4 / §3.3 / §5.4):
 
@@ -91,7 +91,7 @@ async def _new_project(client: AsyncClient) -> str:
 def _csv_header() -> str:
     return (
         "source_term,term_type,preferred,status,"
-        "grammatical_gender_it,grammatical_number,target_term,usage_notes\n"
+        "grammatical_gender_target,grammatical_number,target_term,usage_notes\n"
     )
 
 
@@ -156,7 +156,7 @@ async def test_ac1_import_csv_100_and_errors(client):
     assert len(terms) == 100, terms
     assert all(t["status"] == "approved" for t in terms)
     assert all(t["preferred"] is True for t in terms)
-    assert all(t["grammatical_gender_it"] == "feminine" for t in terms)
+    assert all(t["grammatical_gender_target"] == "feminine" for t in terms)
 
 
 async def test_ac1_tbx_import_roundtrip(client):
@@ -176,7 +176,7 @@ async def test_ac1_tbx_import_roundtrip(client):
     assert len(terms) == 1, terms
     assert terms[0]["source_term"] == "Rome"
     assert terms[0]["target_term"] == "Roma"
-    assert terms[0]["grammatical_gender_it"] == "feminine"
+    assert terms[0]["grammatical_gender_target"] == "feminine"
     assert terms[0]["usage_notes"] == "capital"
 
 
@@ -293,7 +293,7 @@ def _entities(n: int, kind: str) -> list[dict]:
             "canonical_source": f"{kind}-{i}",
             "aliases": [f"{kind}-{i}, {kind}-alt{i}"],
             "entity_type": "CONCEPT_TERM",
-            "italian_grammatical_gender": "feminine",
+            "target_grammatical_gender": "feminine",
             "grammatical_number": "singular",
             "translation_policy": "translate",
             "notes": None,
@@ -417,7 +417,7 @@ async def test_crud_create_update_version_bump(client):
     r = await client.post(f"/api/v1/projects/{pid}/glossary", json={
         "source_term": "Alpha", "term_type": "CONCEPT_TERM",
         "preferred": True, "status": "proposed",
-        "grammatical_gender_it": "masculine",
+        "grammatical_gender_target": "masculine",
         "grammatical_number": "singular",
         "target_term": "Alfa",
     })

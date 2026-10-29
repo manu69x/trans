@@ -83,7 +83,8 @@ class ProposedEntity:
     referential_gender: str = "unknown"
     referential_gender_evidence: str | None = None
     gender_confidence: float | None = None
-    italian_grammatical_gender: str = "not_applicable"
+    # Multilingua 2026-10-29: prima ``italian_grammatical_gender``.
+    target_grammatical_gender: str = "not_applicable"
     grammatical_number: str = "unknown"
     translation_policy: str = "undecided"
     confidence: float | None = None
@@ -407,7 +408,7 @@ def _apply_type_defaults(cluster: ProposedEntity, text: str) -> None:
     elif cluster.entity_type in ("OBJECT_ARTIFACT", "LOCATION", "WORK_MEDIA",
                                  "EVENT", "CONCEPT_TERM", "TITLE_HONORIFIC"):
         cluster.grammatical_number = "singular"
-    cluster.italian_grammatical_gender = "not_applicable"
+    cluster.target_grammatical_gender = "not_applicable"
     cluster.translation_policy = "undecided"
     # referential gender is meaningless for non-personal entities
     cluster.referential_gender = "not_applicable"

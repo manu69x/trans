@@ -62,7 +62,7 @@ CATEGORY_GROUPS: dict[str, tuple[str, ...]] = {
     "terminology": (
         WRONG_TERM, FORBIDDEN_TERM, TERM_INCONSISTENCY,
     ),
-    "italian": (
+    "target": (
         GRAMMAR, SPELLING, PUNCTUATION, COLLOCATION,
     ),
     "style": (

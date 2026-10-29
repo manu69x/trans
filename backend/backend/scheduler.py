@@ -145,12 +145,13 @@ class Scheduler:
         raise NotImplementedError
 
 
-# Max concurrency for heavy jobs (§14). Without a cap, bulk-translating a
-# whole book would launch one LLM thread per chapter all at once, saturating
-# the gateway, host RAM and Postgres. Jobs beyond the limit stay "queued"
-# until a slot frees up.
+# Concorrenza massima per i job pesanti (§14). Senza limite, la traduzione
+# massiva di un intero libro lancia un thread LLM per capitolo tutto insieme:
+# satura Gateway/llama-swap, la RAM di WSL e Postgres (incidente 2026-09-20:
+# WSL wedged). I job oltre il limite restano «queued» in attesa di slot.
 _JOB_CONCURRENCY: dict[str, int] = {
-    # translation is strictly sequential (one job at a time, no parallelism)
+    # traduzione strettamente sequenziale (richiesta utente 2026-09-20:
+    # un job alla volta, nessun parallelismo)
     "translate": int(os.getenv("TRANS_MAX_CONCURRENT_TRANSLATE", "1")),
     "ocr_document": 2,
     "ocr_pages": 2,
@@ -466,11 +467,12 @@ def _translate_handler(db: Session, job: Job) -> None:
 
 
 def _verify_translations_handler(db: Session, job: Job) -> None:
-    """Verifica QE massiva (§10.2-bis, modello Open-QE su GPU0).
+    """Verifica QE massiva (§10.2-bis, rilevatore Spark su GPU0).
 
-    Delegates to :mod:`backend.verify_handler`: due domande chiuse per
-    segmento tradotto (lingua + coppia EN->IT) con le probabilita'
-    memorizzate sui campi ``is_italian`` / ``is_translated``.
+    Delegates to :mod:`backend.verify_handler`: tre domande chiuse per
+    segmento tradotto (lingua del target + coppia source->target) con le
+    probabilita' memorizzate sui campi ``is_target_lang`` /
+    ``is_translated`` / ``is_source_lang``.
     """
     from .verify_handler import run_verify_translations
 

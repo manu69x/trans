@@ -16,9 +16,9 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-      # No init SQL: the schema is managed by Alembic only; the backend
-      # container runs `alembic upgrade head` at boot (migrations/env.py
-      # also creates the pgvector extension). See docs/DEPLOYMENT.md.
+      # Niente init SQL: lo schema è gestito SOLO da Alembic; il container
+      # backend esegue `alembic upgrade head` al boot (migrations/env.py
+      # crea anche l'estensione pgvector). Vedi docs/DOCKER.md.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U trans -d ${POSTGRES_DB:-trans}"]
       interval: 10s
@@ -71,9 +71,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Explicit +psycopg2: with sqlalchemy>=2.1 the plain postgresql:// URL
-      # defaults to the psycopg3 driver, which is not installed in the
-      # image, so pin the driver in the URL.
+      # +psycopg2 esplicito: con sqlalchemy>=2.1 (tiratosi giu' a un
+      # rebuild senza pin) il default di postgresql:// diventa
+      # psycopg3, non installato nell'immagine: crash-loop (2026-09-24)
       DATABASE_URL: postgresql+psycopg2://trans:trans@db:5432/${POSTGRES_DB:-trans}
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
@@ -81,27 +81,22 @@ services:
       MINIO_SECRET_KEY: minioadmin
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Default models for NEW projects (§8.1/§8.2). Override via .env.
-      TRANS_DEFAULT_TRANSLATION_MODEL: ${TRANS_DEFAULT_TRANSLATION_MODEL:-translategemma-27b-it}
-      # LLM Gateway (ADR-001: the single LLM/NLP provider, §13.1).
+      TRANS_DEFAULT_TRANSLATION_MODEL: ${TRANS_DEFAULT_TRANSLATION_MODEL:-translategemma-27b-it_G0}
+      # Gateway Proxy (ADR-001: unico provider LLM/NLP, §13.1).
       LLM_GATEWAY_BASE_URL: ${LLM_GATEWAY_BASE_URL:-http://host.docker.internal:8080/v1}
-      LLM_GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY:-sk-local-dev-change-me}
-      # QE verification endpoint (see deploy/qe-service/README.md). Leave
-      # QE_BASE_URL empty to derive it from the gateway (/upstream/qe).
-      QE_BASE_URL: ${QE_BASE_URL:-}
-      QE_MODEL: ${QE_MODEL:-qe-verify}
+      LLM_GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY:-sk-mia-chiave-super-segreta}
       TRANS_DEFAULT_TEXT_MODEL: ${TRANS_DEFAULT_TEXT_MODEL:-}
       TRANS_DEFAULT_TEMPERATURE: ${TRANS_DEFAULT_TEMPERATURE:-0.2}
       TRANS_DEFAULT_TOP_P: ${TRANS_DEFAULT_TOP_P:-0.9}
       TRANS_DEFAULT_TOP_K: ${TRANS_DEFAULT_TOP_K:-40}
       TRANS_DEFAULT_REASONING: ${TRANS_DEFAULT_REASONING:-none}
       TRANS_DEFAULT_MAX_OUTPUT_TOKENS: ${TRANS_DEFAULT_MAX_OUTPUT_TOKENS:-16384}
-      # §2.1 bootstrap admin (idempotent seed at boot). DEV defaults below —
-      # override via .env; the prod profile requires explicit secrets.
+      # §2.1 bootstrap admin (seed idempotente al boot; DEV locale: override
+      # via .env. Il profilo prod usa i secrets obbligatori).
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@trans.local}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-trans-admin}
-      # Authentication is ON by default. Set to 1 only for air-gapped
-      # single-user machines (every anonymous request becomes admin).
-      AUTH_DISABLED: ${AUTH_DISABLED:-0}
+      # 2026-10-01, richiesta utente: portale senza login. Revertibile: 0.
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
     depends_on:
       db:
         condition: service_healthy
@@ -109,10 +104,10 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    # DR / freshness: the schema is applied by Alembic BEFORE the API
-    # starts (a fresh db volume boots from zero). There is deliberately no
-    # ../backend:/app bind mount: the code that runs is the one installed
-    # in the image (pip install .), so code changes require a rebuild.
+    # DR/ freshness: lo schema è applicato da Alembic PRIMA di avviare l'API
+    # (un volume db fresco parte da zero). Il bind ../backend:/app è stato
+    # rimosso: con Docker Desktop il mount presentava /app vuoto e il codice
+    # effettivamente eseguito è quello installato nell'immagine (pip install .).
     command: sh -c "alembic upgrade head && exec uvicorn backend.main:app --host 0.0.0.0 --port 8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health').read()"]
@@ -134,8 +129,6 @@ services:
       # must reach the backend via the compose network, NOT 127.0.0.1 (which
       # would be itself) and the browser must use relative paths (no CORS).
       BACKEND_URL: http://backend:8000
-      # server-side gateway proxy target for /api/gateway/* (route handler)
-      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://host.docker.internal:8080}
       NEXT_PUBLIC_API_BASE: ""
       NODE_ENV: production
     depends_on:
@@ -169,9 +162,11 @@ services:
       minio:
         condition: service_healthy
     volumes: []
-    # No bind mount of the worker package on purpose: the code runs from the
-    # image (COPY worker/ ./worker/), so after changing worker code run
-    # `docker compose build worker` and bring the stack up again.
+    # Niente bind mount del pacchetto worker: il bridge di file sharing
+    # Docker Desktop<->WSL serve directory vuote per i mount dal filesystem
+    # di Ubuntu (verificato 2026-09-23, anche dopo restart dell'engine).
+    # Il pacchetto e' gia' nell'immagine (COPY worker/ ./worker/): dopo una
+    # modifica al codice worker va fatto `docker compose build worker`.
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 30s

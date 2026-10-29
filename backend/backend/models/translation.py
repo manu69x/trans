@@ -55,15 +55,18 @@ class TranslationUnit(Base):
     tm_snapshot_id: Mapped[str | None] = mapped_column(UUID(), nullable=True)
     model_run_id: Mapped[str | None] = mapped_column(UUID(), nullable=True)
     quality_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    #: Stable per-project ordinal of the segment, assigned at creation.
+    #: Numero progressivo unico del segmento nell'intero progetto, assegnato
+    #: alla creazione e stabile per tutto il processo di traduzione.
     numero: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # QE verification scores (PRD §10.2-bis), each 0..1 as produced by the
-    # quality-estimation endpoint (see backend.qe_client).
-    # is_english = p(yes) "Is this text written in English?" on the target:
-    # a high value with a low is_italian flags a draft that stayed English.
-    is_italian: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
+    # Verifica QE (§10.2-bis, 2026-09-22): probabilita' 0..1 del rilevatore
+    # Spark (qe-verify, via llama-swap; prima Open-QE).
+    # is_source_lang = p(yes) "Is this text written in <source>?" sul target:
+    # un valore alto con is_target_lang basso segnala una bozza rimasta
+    # nella lingua di partenza. Multilingua 2026-10-29 (Tier 1): prima i
+    # campi si chiamavano is_italian / is_english (coppia cablata EN→IT).
+    is_target_lang: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
     is_translated: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
-    is_english: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
+    is_source_lang: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow

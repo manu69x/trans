@@ -56,7 +56,7 @@ export interface DocumentUpload {
 
 /**
  * Una riga della capability matrix (§8.1 / ADR-001 §3.3): ogni modello
- * esposto da LLM Gateway con le sue reali capacità. Popolata da
+ * esposto da Gateway Proxy con le sue reali capacità. Popolata da
  * `GET /api/v1/gateway/models` (nessun nome hardcodato).
  */
 export interface GatewayModel {
@@ -143,7 +143,7 @@ export interface Entity {
   status: "proposed" | "verified" | "approved" | "deprecated" | "merged" | string;
   referential_gender: string;
   referential_gender_evidence: string | null;
-  italian_grammatical_gender: string;
+  target_grammatical_gender: string;
   grammatical_number: string;
   translation_policy: string;
   definition: string | null;

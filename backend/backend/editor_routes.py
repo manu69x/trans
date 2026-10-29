@@ -85,15 +85,18 @@ def _audit(db, project_id, action, entity, entity_id=None, before=None,
 
 
 def _qe_out(unit: TranslationUnit) -> dict:
-    """Punteggi QE del segmento + DIFF = is_italian - is_english."""
-    it = float(unit.is_italian) if unit.is_italian is not None else None
-    en = float(unit.is_english) if unit.is_english is not None else None
-    diff = round(it - en, 4) if it is not None and en is not None else None
+    """Punteggi QE del segmento + DIFF = is_target_lang - is_source_lang."""
+    tgt = (float(unit.is_target_lang)
+           if unit.is_target_lang is not None else None)
+    src = (float(unit.is_source_lang)
+           if unit.is_source_lang is not None else None)
+    diff = (round(tgt - src, 4)
+            if tgt is not None and src is not None else None)
     return {
-        "is_italian": it,
+        "is_target_lang": tgt,
         "is_translated": (float(unit.is_translated)
                           if unit.is_translated is not None else None),
-        "is_english": en,
+        "is_source_lang": src,
         "qe_diff": diff,
     }
 
@@ -282,20 +285,22 @@ async def start_verify_translations(
     payload: dict | None = None,
     db: Session = Depends(get_db_session),
 ) -> dict:
-    """Start QE verification on the project's translated segments.
+    """Avvia la verifica QE sui segmenti tradotti del progetto.
 
-    With ``segment_ids`` in the body, verify ONLY those (the frontend button
-    acts on the current selection, like the other bulk buttons); without,
-    every segment that has a ``target_text``.
+    Con ``segment_ids`` nel body verifica SOLO quelli (il tasto frontend
+    agisce sulla selezione, come gli altri pulsanti bulk); senza, tutti i
+    segmenti con ``target_text``.
 
-    For each segment with a ``target_text`` the QE service computes:
-    * ``is_italian``    -- p(yes) to  "Is this text written in Italian?"
-    * ``is_translated`` -- p(yes) to  "Is the following text the Italian
+    Per ogni segmento con ``target_text`` il rilevatore Spark (GPU0 via
+    llama-swap) calcola:
+    * ``is_target_lang`` -- p(yes) a  "Is this text written in <target>?"
+      (multilingua 2026-10-29: prima ``is_italian``, coppia EN→IT cablata)
+    * ``is_translated``  -- p(yes) a  "Is the following text the <target>
       translation of this text?"
-    * ``is_english``    -- p(yes) to  "Is this text written in English?"
+    * ``is_source_lang`` -- p(yes) a  "Is this text written in <source>?"
 
-    Values are written to the ``translation_units`` fields and shown on the
-    Translation page (§11.2).
+    I valori vengono scritti sui campi di ``translation_units`` e mostrati
+    nella scheda Traduzione (§11.2).
     """
     from .scheduler import get_scheduler_from
 

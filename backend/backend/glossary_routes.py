@@ -63,7 +63,9 @@ _ENTITY_TYPES = {
     "LOCATION", "ORG_FACTION", "WORK_MEDIA", "EVENT",
     "CONCEPT_TERM", "TITLE_HONORIFIC",
 }
-_IT_GENDERS = {"masculine", "feminine", "common", "variable", "not_applicable"}
+# Multilingua 2026-10-29 (Tier 1): "neuter" per il tedesco.
+_TARGET_GENDERS = {"masculine", "feminine", "neuter", "common", "variable",
+                   "not_applicable"}
 _NUMBERS = {"singular", "plural", "invariant", "collective", "unknown"}
 _STATUSES = {"proposed", "verified", "approved", "deprecated", "archived"}
 
@@ -87,13 +89,17 @@ def _get_term(db: Session, project_id: str, term_id: str) -> GlossaryTerm:
 
 
 # --- schemas ----------------------------------------------------------------
+# Multilingua 2026-10-29: il campo API ``grammatical_gender_it`` diventa
+# ``grammatical_gender_target`` (in lettura si accetta anche il nome vecchio
+# dai client/CSV pre-Tier 1).
 class TermCreate(BaseModel):
     source_term: str = Field(..., min_length=1)
     target_term: str | None = None
     term_type: str = Field(..., min_length=1)
     preferred: bool = True
     forbidden_targets: list[str] = Field(default_factory=list)
-    grammatical_gender_it: str | None = None
+    grammatical_gender_target: str | None = None
+    grammatical_gender_it: str | None = None  # nome legacy, deprecato
     grammatical_number: str | None = None
     inflection_notes: str | None = None
     usage_notes: str | None = None
@@ -104,7 +110,8 @@ class TermUpdate(BaseModel):
     target_term: str | None = None
     preferred: bool | None = None
     forbidden_targets: list[str] | None = None
-    grammatical_gender_it: str | None = None
+    grammatical_gender_target: str | None = None
+    grammatical_gender_it: str | None = None  # nome legacy, deprecato
     grammatical_number: str | None = None
     inflection_notes: str | None = None
     usage_notes: str | None = None
@@ -133,7 +140,7 @@ def _term_out(t: GlossaryTerm) -> dict:
         "term_type": t.term_type,
         "preferred": t.preferred,
         "forbidden_targets": list(t.forbidden_targets or []),
-        "grammatical_gender_it": t.grammatical_gender_it,
+        "grammatical_gender_target": t.grammatical_gender_target,
         "grammatical_number": t.grammatical_number,
         "inflection_notes": t.inflection_notes,
         "usage_notes": t.usage_notes,
@@ -171,10 +178,13 @@ async def create_term(
             status_code=422, detail=f"invalid term_type {payload.term_type!r}")
     if payload.status not in _STATUSES:
         raise HTTPException(status_code=422, detail="invalid status")
-    if (payload.grammatical_gender_it is not None
-            and payload.grammatical_gender_it not in _IT_GENDERS):
+    # Nome legacy accettato per compat: grammatical_gender_it.
+    gender = (payload.grammatical_gender_target
+              if payload.grammatical_gender_target is not None
+              else payload.grammatical_gender_it)
+    if gender is not None and gender not in _TARGET_GENDERS:
         raise HTTPException(status_code=422,
-                            detail="invalid grammatical_gender_it")
+                            detail="invalid grammatical_gender_target")
     if (payload.grammatical_number is not None
             and payload.grammatical_number not in _NUMBERS):
         raise HTTPException(status_code=422, detail="invalid grammatical_number")
@@ -187,7 +197,7 @@ async def create_term(
         term_type=payload.term_type,
         preferred=payload.preferred,
         forbidden_targets=list(payload.forbidden_targets),
-        grammatical_gender_it=payload.grammatical_gender_it,
+        grammatical_gender_target=gender,
         grammatical_number=payload.grammatical_number,
         inflection_notes=payload.inflection_notes,
         usage_notes=payload.usage_notes,
@@ -301,12 +311,18 @@ async def update_term(
     term = _get_term(db, project_id, term_id)
 
     changes = payload.model_dump(exclude_none=True)
+    # Multilingua 2026-10-29: il campo legacy grammatical_gender_it
+    # normalizza sul nuovo nome prima del setattr (l'attributo DB è
+    # grammatical_gender_target).
+    if "grammatical_gender_it" in changes:
+        legacy = changes.pop("grammatical_gender_it")
+        changes.setdefault("grammatical_gender_target", legacy)
     if "status" in changes and changes["status"] not in _STATUSES:
         raise HTTPException(status_code=422, detail="invalid status")
-    if ("grammatical_gender_it" in changes
-            and changes["grammatical_gender_it"] not in _IT_GENDERS):
+    if ("grammatical_gender_target" in changes
+            and changes["grammatical_gender_target"] not in _TARGET_GENDERS):
         raise HTTPException(status_code=422,
-                            detail="invalid grammatical_gender_it")
+                            detail="invalid grammatical_gender_target")
     if ('grammatical_number' in changes
             and changes['grammatical_number'] not in _NUMBERS):
         raise HTTPException(status_code=422, detail="invalid grammatical_number")
@@ -362,6 +378,7 @@ async def import_terms(
     _get_project(db, project_id)
     data = await file.read()
     text = data.decode("utf-8", errors="replace")
+    project = _get_project(db, project_id)
 
     if fmt == "auto":
         fname = (file.filename or "").lower()
@@ -373,7 +390,8 @@ async def import_terms(
     if fmt == "csv":
         terms, errors = import_csv(text)
     elif fmt == "tbx":
-        terms, errors = import_tbx(text)
+        terms, errors = import_tbx(
+            text, getattr(project, "target_language", None) or "it")
     else:
         raise HTTPException(status_code=422, detail=f"unknown format {fmt!r}")
 
@@ -387,7 +405,7 @@ async def import_terms(
             term_type=t["term_type"],
             preferred=t["preferred"],
             forbidden_targets=t["forbidden_targets"],
-            grammatical_gender_it=t["grammatical_gender_it"],
+            grammatical_gender_target=t["grammatical_gender_target"],
             grammatical_number=t["grammatical_number"],
             inflection_notes=t["inflection_notes"],
             usage_notes=t["usage_notes"],

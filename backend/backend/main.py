@@ -2,7 +2,7 @@
 
 Local-only MVP skeleton: health endpoint, DB (pgvector) connectivity check,
 and a minimal project scaffold for the EN->IT literary translation platform.
-All inference is routed exclusively through the local LLM Gateway.
+All inference is routed exclusively through the local Gateway Proxy.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .db import Base
 from .routes import router as api_router
+from .routes import languages_router
 from .auth_routes import router as auth_router  # noqa: E402
 from .entity_routes import router as entity_router  # noqa: E402
 from .structure_routes import router as structure_router  # noqa: E402
@@ -106,6 +107,8 @@ def create_app() -> FastAPI:
 
     authenticated = [Depends(get_current_user)]
     app.include_router(api_router, prefix="/api/v1", dependencies=authenticated)
+    app.include_router(languages_router, prefix="/api/v1", tags=["languages"],
+                       dependencies=authenticated)
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(structure_router, prefix="/api/v1", tags=["structure"],
                        dependencies=authenticated)

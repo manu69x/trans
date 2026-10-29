@@ -183,21 +183,22 @@ def _quote_context(text: str, start: int, end: int) -> str:
 def _run_booknlp_subprocess(text: str, out_dir: str) -> str:
     """Run BookNLP on *text* via the GPU service; returns the output file id.
 
-    Single path (ADR-008): the BookNLP FastAPI wrapper on a GPU host,
-    reached through the local LLM Gateway (:mod:`.booknlp_service`) —
-    "big" models on CUDA. The local CPU fallback (a venv with transformers
-    5.x vs BookNLP 1.0.7) was REMOVED: it did not work and masked the
-    failure. If the GPU service is unreachable the job fails explicitly.
+    Unico percorso (deciso 2026-09-18, ADR-008): il wrapper FastAPI BookNLP
+    su iaserver GPU0, raggiunto attraverso il Gateway Proxy locale
+    (:mod:`.booknlp_service`) — modelli "big" su CUDA. Il fallback CPU locale
+    (venv ``.venv-booknlp`` + ``booknlp_task.py``, transformers 5.x vs
+    BookNLP 1.0.7) è stato RIMOSSO: non funzionava e mascherava il guasto.
+    Se il servizio GPU non è raggiungibile il job fallisce in modo esplicito.
     """
     try:
         from . import booknlp_service
 
         return booknlp_service.run_booknlp(text, out_dir, book_id="book")
-    except Exception as exc:  # noqa: BLE001 - no fallback: fail loud
+    except Exception as exc:  # noqa: BLE001 - niente fallback: fallisci loud
         raise RuntimeError(
-            "BookNLP GPU service unreachable: entity extraction requires "
-            "the service behind the gateway (ADR-008); the CPU fallback has "
-            "been removed. Cause: " + str(exc)
+            "BookNLP GPU service non raggiungibile: l'estrazione entità "
+            "richiede il servizio su iaserver (ADR-008); il fallback CPU è "
+            "stato rimosso. Causa: " + str(exc)
         ) from exc
 
 
@@ -393,7 +394,7 @@ def _persist(db: Session, job: Job, project_id: str, node_id: str | None,
                 entity_type=cluster.entity_type,
                 referential_gender=cluster.referential_gender,
                 referential_gender_evidence=cluster.referential_gender_evidence,
-                italian_grammatical_gender=cluster.italian_grammatical_gender,
+                target_grammatical_gender=cluster.target_grammatical_gender,
                 grammatical_number=cluster.grammatical_number,
                 translation_policy=cluster.translation_policy,
                 status="proposed",
@@ -468,7 +469,7 @@ def _persist(db: Session, job: Job, project_id: str, node_id: str | None,
                 entity_type=ents._HF_GROUP_TO_TYPE.get(item["group"],
                                                        "CONCEPT_TERM"),
                 referential_gender="not_applicable",
-                italian_grammatical_gender="not_applicable",
+                target_grammatical_gender="not_applicable",
                 grammatical_number="unknown",
                 translation_policy="undecided",
                 status="proposed",

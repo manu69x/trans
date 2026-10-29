@@ -16,6 +16,7 @@ import { ErrorNote } from "@/components/ui";
 import { ApiError, createProject, uploadDocument } from "@/lib/api";
 import { QUERY_KEY_PROJECTS } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n";
+import { SUPPORTED_SOURCE, SUPPORTED_TARGETS } from "@/lib/languages";
 
 type WizardStep = 0 | 1 | 2;
 
@@ -24,12 +25,13 @@ const GENRE_VALUES = ["fantascienza", "horror", "rosa", "saggio"] as const;
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const { t, dict } = useI18n();
+  const { t, dict, locale } = useI18n();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WizardStep>(0);
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState<string>("");
+  const [targetLanguage, setTargetLanguage] = useState<string>("it");
   const [styleGuide, setStyleGuide] = useState("");
   const [copyright, setCopyright] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -44,6 +46,8 @@ export default function NewProjectPage() {
       const project = await createProject({
         title: title.trim(),
         genre_profile: genre,
+        source_language: SUPPORTED_SOURCE,
+        target_language: targetLanguage,
       });
       const upload = await uploadDocument({
         projectId: project.id,
@@ -165,6 +169,43 @@ export default function NewProjectPage() {
               placeholder={t("newProject.titlePlaceholder")}
               required
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="source-lang" className="label">
+                {t("newProject.sourceLanguage")}
+              </label>
+              <input
+                id="source-lang"
+                className="input"
+                value={SUPPORTED_SOURCE.toUpperCase()}
+                disabled
+                aria-describedby="source-lang-hint"
+              />
+              <p id="source-lang-hint" className="mt-1 text-xs text-slate-500">
+                {t("newProject.sourceLanguageHint")}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="target-lang" className="label">
+                {t("newProject.targetLanguage")}{" "}
+                <span className="text-red-400">*</span>
+              </label>
+              <select
+                id="target-lang"
+                className="input"
+                value={targetLanguage}
+                onChange={(e) => setTargetLanguage(e.target.value)}
+              >
+                {SUPPORTED_TARGETS.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {locale === "it" ? lang.name_it : lang.name_en}{" "}
+                    ({lang.code.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <fieldset>

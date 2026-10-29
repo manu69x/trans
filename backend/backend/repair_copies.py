@@ -37,9 +37,9 @@ def main() -> None:
             print(f"  reset segmento {u.numero} ({len(u.source_text)} car)")
             u.target_text = None
             u.status = "untranslated"
-            u.is_italian = None
+            u.is_target_lang = None
             u.is_translated = None
-            u.is_english = None
+            u.is_source_lang = None
         db.commit()
         print(f"RESET OK: {len(suspects)} segmenti")
         print("IDS=" + ",".join(str(u.id) for u in suspects))

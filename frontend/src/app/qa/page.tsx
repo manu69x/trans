@@ -79,7 +79,7 @@ const GROUP_VALUES = [
   "",
   "accuracy",
   "terminology",
-  "italian",
+  "target",
   "style",
   "locale",
   "source",

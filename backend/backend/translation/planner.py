@@ -99,9 +99,14 @@ class TokenBudget:
 # The fixed skeleton of the translation prompt (§9.4). Placeholders are
 # substituted by :class:`PromptAssembler`; the surrounding text is the
 # platform's hard rules and MUST NOT be altered per block.
+#
+# Multilingua (2026-10-29): {source_lang_name_it} / {target_lang_name_it} /
+# {target_lang_adj_it} sono parametrizzati dal catalogo lingue
+# (backend.languages). Le regole 3-4 di PRIORITÀ sono EN-specifiche
+# (source=en per tutto il Tier 1): da generalizzare in fase B (source ≠ en).
 _PROMPT_SKELETON = """RUOLO
-Sei un traduttore editoriale professionista dall'inglese all'italiano.
-Traduci con fedeltà semantica, naturalezza letteraria italiana e coerenza
+Sei un traduttore editoriale professionista dall'{source_lang_name_it} all'{target_lang_name_it}.
+Traduci con fedeltà semantica, naturalezza letteraria {target_lang_adj_it} e coerenza
 assoluta con il glossario approvato. Non riassumere, non censurare, non
 aggiungere spiegazioni, non omettere contenuto e non inventare dettagli.
 
@@ -112,7 +117,7 @@ PRIORITÀ
 3. "I isolato (PRD §5.5 / §9.4): il token isolato "I" è pronome personale
    di prima persona inglese, MAI un nome proprio.
 4. Le marcature [[POSS:...]] 's indicano possessivo inglese. Rendilo in
-   italiano in modo naturale; non emettere mai tali marcature.
+   {target_lang_name_it} in modo naturale; non emettere mai tali marcature.
 5. Mantieni voce, tempo verbale, focalizzazione, ritmo dei dialoghi e
    punteggiatura significativa.
 6. Il contesto è solo per comprensione: non tradurlo né restituirlo.
@@ -158,12 +163,26 @@ _GRAMMAR_GENDER_IT = {"masculine": "maschile", "feminine": "femminile"}
 _GRAMMAR_NUMBER_IT = {"singular": "singolare", "plural": "plurale"}
 
 
-def _grammar_it(entry: dict) -> str | None:
-    """Genere/numero grammaticali italiani della voce (per l'articolo)."""
-    gender = _GRAMMAR_GENDER_IT.get(
+def _grammar_labels(target_lang: str) -> dict:
+    """Etichette genere/numero nel prompt, per lingua target (catalogo).
+
+    EN→IT deve restare come prima: etichette italiane dal catalogo; le altre
+    lingue usano le etichette grammaticali locali della lingua stessa.
+    """
+    from ..languages import get_language
+    return get_language(target_lang).get("grammar_labels") or {
+        **_GRAMMAR_GENDER_IT, **_GRAMMAR_NUMBER_IT,
+    }
+
+
+def _grammar_it(entry: dict, target_lang: str = "it") -> str | None:
+    """Genere/numero grammaticali della voce (per l'accordo dell'articolo)."""
+    labels = _grammar_labels(target_lang)
+    gender = labels.get(
         (entry.get("gender")
+         or entry.get("target_grammatical_gender")
          or entry.get("italian_grammatical_gender") or "").lower())
-    number = _GRAMMAR_NUMBER_IT.get(
+    number = labels.get(
         (entry.get("number")
          or entry.get("grammatical_number") or "").lower())
     parts = [p for p in (gender, number) if p]
@@ -171,11 +190,16 @@ def _grammar_it(entry: dict) -> str | None:
 
 
 def render_glossary_section(glossary_entries: list[dict],
-                            entities: list[dict]) -> str:
+                            entities: list[dict],
+                            target_lang: str = "it") -> str:
     """Render ``{{retrieved_approved_terms}}`` (§9.4): the approved terms
     themselves, not a reference. Each line carries the policy (and the
-    Italian grammatical gender/number, which drive article agreement) so the
-    model can comply with §9.3/§10.2 without external lookups."""
+    target-language grammatical gender/number, which drive article
+    agreement) so the model can comply with §9.3/§10.2 without external
+    lookups."""
+    from ..languages import target_adjective_it
+
+    adjective = target_adjective_it(target_lang)
     lines: list[str] = []
     for e in list(glossary_entries) + list(entities):
         src = (e.get("source") or e.get("canonical_source") or "").strip()
@@ -192,12 +216,12 @@ def render_glossary_section(glossary_entries: list[dict],
             # §9.4: «salvo flessione esplicitamente consentita» — il flag
             # dell'entità rende esplicita quella consenso nel prompt.
             if e.get("allow_inflection"):
-                marks.append("flessione italiana consentita")
+                marks.append(f"flessione {adjective} consentita")
         elif tgt:
             body = f"{src} -> {tgt}"
         else:
             body = f"{src} (traduzione libera, coerente con il genere)"
-        grammar = _grammar_it(e)
+        grammar = _grammar_it(e, target_lang)
         if grammar:
             marks.append(grammar)
         if forbidden:
@@ -208,15 +232,19 @@ def render_glossary_section(glossary_entries: list[dict],
     return "\n".join(lines)
 
 
-def render_tm_section(tm_matches: list[dict]) -> str:
-    """Render ``{{tm_matches}}`` (§9.4): approved EN→IT example pairs."""
+def render_tm_section(tm_matches: list[dict],
+                      source_lang: str = "en",
+                      target_lang: str = "it") -> str:
+    """Render ``{{tm_matches}}`` (§9.4): approved example pairs."""
+    src_tag = source_lang.upper()
+    tgt_tag = target_lang.upper()
     lines: list[str] = []
     for m in tm_matches:
         src = (m.get("source_normalized") or m.get("source_original")
                or "").strip()
         tgt = (m.get("target_approved") or "").strip()
         if src and tgt:
-            lines.append(f"- EN: {src}\n  IT: {tgt}")
+            lines.append(f"- {src_tag}: {src}\n  {tgt_tag}: {tgt}")
     return "\n".join(lines)
 
 
@@ -252,6 +280,8 @@ class PromptAssembler:
     genre_profile: str | None = None
     style_guide: str | None = None
     output_schema: str | None = None
+    source_lang: str = "en"
+    target_lang: str = "it"
 
     def render_section(self, key: str, value: str) -> str:
         return value if value not in (None, "") else "[[none]]"
@@ -265,16 +295,22 @@ class PromptAssembler:
         ``{{segment_batch_with_ids}}`` — the rendered ``[id] source`` lines
         of the block (see :func:`render_segment_batch`).
         """
+        from ..languages import language_name, target_adjective_it
         return _PROMPT_SKELETON.format(
+            source_lang_name_it=language_name(self.source_lang, "it"),
+            target_lang_name_it=language_name(self.target_lang, "it"),
+            target_lang_adj_it=target_adjective_it(self.target_lang),
             genre_style_prompt=self.render_section(
                 "style", render_style_section(self.genre_profile,
                                               self.style_guide)),
             retrieved_approved_terms=self.render_section(
                 "glossary",
-                render_glossary_section(self.glossary_entries, self.entities),
+                render_glossary_section(self.glossary_entries, self.entities,
+                                        self.target_lang),
             ),
             tm_matches=self.render_section(
-                "tm", render_tm_section(self.tm_matches)),
+                "tm", render_tm_section(self.tm_matches, self.source_lang,
+                                        self.target_lang)),
             previous_context=self.render_section("context", previous_context),
             segment_batch_with_ids=(
                 segment_batch
@@ -446,6 +482,8 @@ def build_block_plan(
     snapshot_ids: dict | None = None,
     output_schema: str | None = None,
     genre_profile: str | None = None,
+    source_lang: str = "en",
+    target_lang: str = "it",
 ) -> BlockPlan:
     """Assemble a :class:`BlockPlan` for one block (PRD §10.1 steps 1-3).
 
@@ -466,8 +504,9 @@ def build_block_plan(
     # rendered glossary/TM/style sections (fix 2026-09-18: the context was
     # counted from the real content but the prompt only carried markers).
     style_text = render_style_section(genre_profile, style_guide)
-    glossary_text = render_glossary_section(glossary_entries, entities)
-    tm_text = render_tm_section(tm_matches)
+    glossary_text = render_glossary_section(glossary_entries, entities,
+                                            target_lang)
+    tm_text = render_tm_section(tm_matches, source_lang, target_lang)
     context_text = "\n".join(x for x in (style_text, glossary_text, tm_text)
                              if x)
     context_tokens = count_tokens(context_text)
@@ -481,6 +520,8 @@ def build_block_plan(
         genre_profile=genre_profile,
         style_guide=style_guide,
         output_schema=output_schema,
+        source_lang=source_lang,
+        target_lang=target_lang,
     )
     prompt = assembler.assemble(
         previous_context=previous_context,

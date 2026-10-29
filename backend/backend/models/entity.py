@@ -40,7 +40,10 @@ class Entity(Base):
     entity_type: Mapped[str] = mapped_column(String(48), nullable=False)
     referential_gender: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown")
     referential_gender_evidence: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    italian_grammatical_gender: Mapped[str] = mapped_column(String(24), nullable=False, default="not_applicable")
+    # Genere grammaticale che il termine assume nella LINGUA TARGET
+    # (multilingua 2026-10-29: prima ``italian_grammatical_gender``,
+    # coppia cablata EN→IT).
+    target_grammatical_gender: Mapped[str] = mapped_column(String(24), nullable=False, default="not_applicable")
     grammatical_number: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown")
     translation_policy: Mapped[str] = mapped_column(String(24), nullable=False, default="undecided")
     definition: Mapped[str | None] = mapped_column(Text, nullable=True)

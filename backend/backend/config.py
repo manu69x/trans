@@ -26,10 +26,10 @@ ACCESS_TOKEN_TTL_SECONDS = int(os.getenv("ACCESS_TOKEN_TTL_SECONDS", str(15 * 60
 SEED_ADMIN_EMAIL = os.getenv("SEED_ADMIN_EMAIL", "")
 SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
 
-#: When ``1``/``true`` the app does not require login: every request without
-#: an Authorization header is treated as admin. Intended for air-gapped
-#: single-user machines only. Default OFF: authentication stays enabled
-#: unless explicitly overridden via docker-compose (``AUTH_DISABLED``).
+#: Quando ``1``/``true`` il portale NON richiede il login: ogni richiesta
+#: senza Authorization header viene trattata come admin (2026-10-01, richiesta
+#: utente). Default OFF: l'autenticazione resta attiva salvo override esplicito
+#: via docker-compose (AUTH_DISABLED).
 AUTH_DISABLED = os.getenv("AUTH_DISABLED", "0").lower() in ("1", "true", "yes")
 
 # --- local_only policy (§13.1) -----------------------------------------
@@ -81,7 +81,7 @@ def assert_local_url(url: str) -> str:
     """Raise if *url* is not local and ``LOCAL_ONLY`` is enabled.
 
     This is the enforcement point for §13.1: it blocks or flags any
-    outbound call (LLM Gateway, object storage, telemetry) whose host is
+    outbound call (Gateway Proxy, object storage, telemetry) whose host is
     not in the local set.
     """
     if not LOCAL_ONLY:
@@ -91,36 +91,36 @@ def assert_local_url(url: str) -> str:
     return url
 
 
-# --- LLM Gateway (PRD §8, ADR-001) -------------------------------------
-# The only LLM inference source (§8.1): any OpenAI-compatible local server
-# (llama.cpp / llama-swap / vLLM / LM Studio, ...). The default targets the
-# host loopback, which stays inside the local-only policy (§13.1).
+# --- Gateway Proxy (PRD §8, ADR-001) -------------------------------------
+# The only LLM inference source (§8.1). The base URL is NOT the docker service
+# name: ADR-001 measured the real local proxy (llama-swap wrapper) on the
+# loopback, which stays inside the local-only policy (§13.1).
 LLM_GATEWAY_BASE_URL = os.getenv("LLM_GATEWAY_BASE_URL", "http://127.0.0.1:8080/v1")
-# Segment quality-estimation service (see deploy/qe-service/README.md).
-# By default it is derived from the gateway base URL (the gateway's
-# ``/upstream/qe`` upstream), so one gateway can serve both the translation
-# models and the verification model. Override with an explicit URL to point
-# it at a standalone endpoint.
-QE_BASE_URL = os.getenv("QE_BASE_URL") or (
-    LLM_GATEWAY_BASE_URL.rstrip("/").removesuffix("/v1") + "/upstream/qe"
+# Servizio QE di verifica (Open-QE DeBERTa-v3-large su GPU0, ADR-008
+# pattern): raggiunto tramite la catena Gateway -> llama-swap.
+QE_BASE_URL = os.getenv(
+    "QE_BASE_URL",
+    LLM_GATEWAY_BASE_URL.rstrip("/").removesuffix("/v1") + "/upstream/qe-verify",
 )
-LLM_GATEWAY_API_KEY = os.getenv("LLM_GATEWAY_API_KEY", "sk-local-dev-change-me")
-# HTTP timeout (seconds) for gateway calls (§8.1). A cold model start can
-# take tens of seconds, so this is deliberately generous.
+LLM_GATEWAY_API_KEY = os.getenv("LLM_GATEWAY_API_KEY", "sk-mia...reta")
+# HTTP timeout (seconds) for proxy calls (§8.1). Cold-start of the target
+# server can take ~28s, so this is deliberately generous.
 LLM_GATEWAY_TIMEOUT = int(os.getenv("LLM_GATEWAY_TIMEOUT", "60") or 60)
-# Budget cap for one structured call (ADR-001 §3.3: max_tokens accepted;
-# for models that ignore it, the adapter sets an upper bound). 16384 keeps
-# a 16k-in / 16k-out block budget.
+# Budget cap for one structured NER call (ADR-001 §3.3: max_tokens accepted,
+# effectively unbounded models → the adapter sets an upper bound).
+# 16384: allineato al nuovo budget di blocco 16k in / 16k out (2026-09-21).
 LLM_GATEWAY_MAX_OUTPUT_TOKENS = int(os.getenv("LLM_GATEWAY_MAX_OUTPUT_TOKENS", "16384"))
 
 # --- Default models for NEW projects (§8.1/§8.2: env-driven, no hardcoding
 # in the create route — the operator pins the defaults per deployment).
 DEFAULT_TRANSLATION_MODEL = os.getenv(
-    "TRANS_DEFAULT_TRANSLATION_MODEL", "translategemma-27b-it")
-# Fallback translation model: used automatically when the primary model
-# returns the source unchanged (untranslated draft). Empty string disables
-# the fallback; pick a model id that exists on YOUR gateway.
-FALLBACK_TRANSLATION_MODEL = os.getenv("TRANS_FALLBACK_TRANSLATION_MODEL", "")
+    "TRANS_DEFAULT_TRANSLATION_MODEL", "translategemma-27b-it_G0")
+# Modello di riserva per la traduzione: usato automaticamente quando la
+# risposta del modello primario e' una copia del sorgente (incidente
+# 2026-09-23, segmento 347: translategemma talvolta non traduce certi
+# input e restituisce l'inglese; gemma-4-26B li traduce correttamente).
+FALLBACK_TRANSLATION_MODEL = os.getenv(
+    "TRANS_FALLBACK_TRANSLATION_MODEL", "gemma-4-26B-A4B-it-UD-NoThink_G0")
 DEFAULT_TEXT_MODEL = os.getenv("TRANS_DEFAULT_TEXT_MODEL", "")
 DEFAULT_MODEL_SETTINGS = {
     "temperature": float(os.getenv("TRANS_DEFAULT_TEMPERATURE", "0.2")),
